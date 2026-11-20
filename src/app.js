@@ -399,17 +399,18 @@
     if ((!room.local || room.cpu) && m === S.turn && key !== lastTurnKey && (S.phase === 'roll' || S.phase === 'setup')) { toast('あなたの番です'); buzz([30, 60, 30]); }
     lastTurnKey = key;
     const st = S.lastSteal;
+    let hit = false; // この変化で、自分の札がほかの人にとられたか
     const flies = [], chip = (i) => '.pl[data-i="' + i + '"]', cell = (r) => '.rc[data-r="' + r + '"]', nm = (i) => S.players[i].name;
     const solo = !room.local || room.cpu; // 自分の席が決まっている（1台まわしでは手札の中身を出さない）
     if (st && st.rev > lastStealRev) {
       lastStealRev = st.rev;
-      if (solo && st.from === m) { toast(ICON[st.res] + JA[st.res] + ' を ' + nm(st.by) + ' にうばわれた', 4200); buzz([60, 50, 90]); flies.push([cell(st.res), chip(st.by), ICON[st.res]]); }
+      if (solo && st.from === m) { hit = true; toast(ICON[st.res] + JA[st.res] + ' を ' + nm(st.by) + ' にうばわれた', 4200); buzz([60, 50, 90]); flies.push([cell(st.res), chip(st.by), ICON[st.res]]); }
       else if (solo && st.by === m) { toast(nm(st.from) + ' から ' + ICON[st.res] + JA[st.res] + ' をうばった', 3600); flies.push([chip(st.from), cell(st.res), ICON[st.res]]); }
       else flies.push([chip(st.from), chip(st.by), '?']);
     }
     const mo = S.lastMono, mk = S.gameId + ':' + (mo ? mo.n : 0);
     if (mo && mk !== lastMonoKey && lastMonoKey !== '') {
-      if (solo && mo.from[m]) { toast('独占：' + ICON[mo.res] + JA[mo.res] + ' ' + mo.from[m] + '枚を ' + nm(mo.by) + ' にとられた', 4200); buzz([60, 50, 90]); flies.push([cell(mo.res), chip(mo.by), ICON[mo.res] + mo.from[m]]); }
+      if (solo && mo.from[m]) { hit = true; toast('独占：' + ICON[mo.res] + JA[mo.res] + ' ' + mo.from[m] + '枚を ' + nm(mo.by) + ' にとられた', 4200); buzz([60, 50, 90]); flies.push([cell(mo.res), chip(mo.by), ICON[mo.res] + mo.from[m]]); }
       else Object.keys(mo.from).forEach((k) => { if (+k !== m) flies.push([chip(k), solo && mo.by === m ? cell(mo.res) : chip(mo.by), ICON[mo.res] + mo.from[k]]); });
     }
     lastMonoKey = mk;
@@ -440,9 +441,11 @@
       if (prevHand && prevHand.k === hk) {
         const d = {}; let any = false;
         RES.forEach((r) => { if (h[r] !== prevHand.h[r]) { d[r] = h[r] - prevHand.h[r]; any = true; } });
-        if (any) { handFx = { t: Date.now(), d }; clearTimeout(handTimer); handTimer = setTimeout(() => { handFx = null; if (screen === 'game' && S) render(); }, 2600); }
+        // とられた・捨てさせられたときは強く、自分で使ったとき（建設・交換）は控えめに見せる
+        const strong = hit || (!!prevHand.need && !S.discardNeed[m]);
+        if (any) { handFx = { t: Date.now(), d, strong }; clearTimeout(handTimer); handTimer = setTimeout(() => { handFx = null; if (screen === 'game' && S) render(); }, strong ? 2600 : 1700); }
       }
-      prevHand = { k: hk, h: Object.assign({}, h) };
+      prevHand = { k: hk, h: Object.assign({}, h), need: S.discardNeed[m] || 0 };
     }
     render(); scheduleCpu();
     flies.forEach((x) => fly(x[0], x[1], x[2]));
@@ -626,7 +629,7 @@
   function handHtml(m) {
     if (m < 0) return '<div class="hand"><span class="muted">観戦中</span></div>';
     const p = S.players[m];
-    return '<div class="hand">' + RES.map((r) => { const up = handFx ? handFx.d[r] || 0 : 0; return '<span class="rc' + (p.res[r] ? '' : ' z') + (up > 0 ? ' up' : up < 0 ? ' down' : '') + '" data-r="' + r + '"' + (up ? ' ' + dl(handFx.t) : '') + '>' + ICON[r] + '<small>' + JA[r] + '</small><b>' + p.res[r] + '</b>' + (up > 0 ? '<i class="plus" ' + dl(handFx.t) + '>+' + up + '</i>' : up < 0 ? '<i class="plus minus" ' + dl(handFx.t) + '>−' + (-up) + '</i>' : '') + '</span>'; }).join('') + '</div>';
+    return '<div class="hand">' + RES.map((r) => { const up = handFx ? handFx.d[r] || 0 : 0; return '<span class="rc' + (p.res[r] ? '' : ' z') + (up > 0 ? ' up' : up < 0 ? (handFx.strong ? ' down' : ' spent') : '') + '" data-r="' + r + '"' + (up ? ' ' + dl(handFx.t) : '') + '>' + ICON[r] + '<small>' + JA[r] + '</small><b>' + p.res[r] + '</b>' + (up > 0 ? '<i class="plus" ' + dl(handFx.t) + '>+' + up + '</i>' : up < 0 ? '<i class="plus minus' + (handFx.strong ? '' : ' soft') + '" ' + dl(handFx.t) + '>−' + (-up) + '</i>' : '') + '</span>'; }).join('') + '</div>';
   }
   function actionsHtml(m) {
     if (m < 0 || S.phase === 'over') return '<div class="acts"><button class="ab" data-a="sheet" data-i="log">記録</button><button class="ab" data-a="sheet" data-i="cost">コスト表</button><button class="ab" data-a="leave">' + (room.local ? 'やめる' : '部屋を出る') + '</button></div>';
