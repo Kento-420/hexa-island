@@ -155,7 +155,7 @@
   let room = null;   // {code, local, host, seats, inputs, unsub, slow}
   let S = null, me = -1;
   let busy = false;
-  const blankUi = () => ({ counter: false, mode: null, sheet: null, tab: 'bank', give: E.zero(), want: E.zero(), disc: E.zero(), bankGive: null, bankGet: null, pick: [], view: 0, sentDiscard: false, sentTrade: 0 });
+  const blankUi = () => ({ sel: null, counter: false, mode: null, sheet: null, tab: 'bank', give: E.zero(), want: E.zero(), disc: E.zero(), bankGive: null, bankGet: null, pick: [], view: 0, sentDiscard: false, sentTrade: 0 });
   let ui = blankUi();
   let lastTurnKey = '', lastStealRev = 0;
   // 開始時にタイルを伏せておき、外側から順にめくる
@@ -374,7 +374,8 @@
     if (room.local && !room.cpu) ui.view = S.phase === 'discard' ? +Object.keys(S.discardNeed)[0] : S.turn;
     const m = meSeat();
     if (S.phase !== 'main' || m !== S.turn) ui.mode = null;
-    else if (ui.mode) { const c = { road: 'road', settle: 'settlement', city: 'city' }[ui.mode]; if (!E.canAfford(S.players[m], E.COST[c])) ui.mode = null; }
+    else if (ui.mode && whyNot(ui.mode, m)) ui.mode = null;
+    if (ui.sel && !inTargets(targets(), ui.sel)) ui.sel = null;
     if (S.phase !== 'discard') { ui.sentDiscard = false; ui.disc = E.zero(); }
     if (!S.trade) { ui.sentTrade = 0; ui.counter = false; }
     if (['trade', 'plenty', 'mono'].indexOf(ui.sheet) >= 0 && (m !== S.turn || (S.phase !== 'main' && S.phase !== 'roll'))) ui.sheet = null;
@@ -419,20 +420,39 @@
   }
 
   // ---------- 盤面 ----------
+  // 今タップできる場所。自分の番の建設フェーズでは、建てられるものを最初から全部光らせる
   function targets() {
-    const t = { v: [], e: [], h: [], city: false };
+    const t = { v: [], c: [], e: [], h: [], col: '#fff', sel: ui.sel };
     if (!S || S.phase === 'over' || reveal) return t;
     const m = meSeat(); if (m < 0 || m !== S.turn) return t;
+    const p = S.players[m]; t.col = PCOL[m];
     if (S.phase === 'setup') { if (S.setup.need === 's') t.v = E.legalSettlements(S, m); else t.e = E.legalRoads(S, m); }
     else if (S.phase === 'robber') t.h = S.hexes.map((_, i) => i).filter((i) => i !== S.robber);
     else if (S.phase === 'roadbuilding') t.e = E.legalRoads(S, m);
-    else if (S.phase === 'main') {
-      if (ui.mode === 'road') t.e = E.legalRoads(S, m);
-      else if (ui.mode === 'settle') t.v = E.legalSettlements(S, m);
-      else if (ui.mode === 'city') { t.v = E.legalCities(S, m); t.city = true; }
+    else if (S.phase === 'main' && !S.trade) {
+      const want = (k) => !ui.mode || ui.mode === k;
+      if (want('road') && p.roadsLeft > 0 && E.canAfford(p, E.COST.road)) t.e = E.legalRoads(S, m);
+      if (want('settle') && p.settlementsLeft > 0 && E.canAfford(p, E.COST.settlement)) t.v = E.legalSettlements(S, m);
+      if (want('city') && p.citiesLeft > 0 && E.canAfford(p, E.COST.city)) t.c = E.legalCities(S, m);
     }
     return t;
   }
+  const inTargets = (t, x) => !!x && (t[x.k] || []).indexOf(x.i) >= 0;
+  const HOUSE = 'M-8,8V-2L0,-10L8,-2V8Z', CITY = 'M-12,9V-4L-6,-11L0,-4V-1H12V9Z';
+  // 建てられない理由（建てられるなら空文字）
+  function whyNot(k, m) {
+    const p = S.players[m], cost = E.COST[{ road: 'road', settle: 'settlement', city: 'city', dev: 'dev' }[k]];
+    if (k === 'road' && p.roadsLeft <= 0) return '道のコマが残っていません';
+    if (k === 'settle' && p.settlementsLeft <= 0) return '開拓地のコマが残っていません（都市にすると戻ります）';
+    if (k === 'city' && p.citiesLeft <= 0) return '都市のコマが残っていません';
+    if (k === 'dev' && !S.devDeck.length) return '発展カードは売り切れです';
+    const lack = lackHtml(p, cost); if (lack) return 'あと ' + lack + ' 足りません';
+    if (k === 'road' && !E.legalRoads(S, m).length) return '道を置ける場所がありません';
+    if (k === 'settle' && !E.legalSettlements(S, m).length) return '建てられる場所がありません。道をのばすと建てられます';
+    if (k === 'city' && !E.legalCities(S, m).length) return '都市にできる開拓地がありません';
+    return '';
+  }
+  const lackHtml = (p, cost) => RES.filter((r) => (cost[r] || 0) > p.res[r]).map((r) => ICON[r] + (cost[r] - p.res[r] > 1 ? cost[r] - p.res[r] : '')).join('');
   const f = (n) => n.toFixed(1);
   function boardSVG(B, tg, gfx, cover) {
     let o = '<svg class="board" viewBox="-262 -236 524 472" role="img" aria-label="盤面">';
@@ -491,9 +511,13 @@
       });
     }
     if (tg) {
-      tg.h.forEach((i) => { const g = G.hexes[i]; o += '<g class="tg" data-a="h" data-i="' + i + '"><polygon class="tgh" points="' + g.v.map((v) => f(G.verts[v].x) + ',' + f(G.verts[v].y)).join(' ') + '"/><circle class="tgr" cx="' + f(g.x) + '" cy="' + f(g.y) + '" r="30"/></g>'; });
-      tg.e.forEach((e) => { const ed = G.edges[e], a = G.verts[ed.a], b = G.verts[ed.b], m = G.mid(ed); o += '<g class="tg" data-a="e" data-i="' + e + '"><line class="tgl" x1="' + f(a.x + (b.x - a.x) * 0.2) + '" y1="' + f(a.y + (b.y - a.y) * 0.2) + '" x2="' + f(b.x + (a.x - b.x) * 0.2) + '" y2="' + f(b.y + (a.y - b.y) * 0.2) + '"/><circle class="tgx" cx="' + f(m.x) + '" cy="' + f(m.y) + '" r="19"/></g>'; });
-      tg.v.forEach((v) => { const p = G.verts[v]; o += '<g class="tg" data-a="' + (tg.city ? 'c' : 'v') + '" data-i="' + v + '"><circle class="tgx" cx="' + f(p.x) + '" cy="' + f(p.y) + '" r="21"/><circle class="tgd" cx="' + f(p.x) + '" cy="' + f(p.y) + '" r="' + (tg.city ? 15 : 9) + '"/></g>'; });
+      const cls = (k, i) => 'tg' + (tg.sel && tg.sel.k === k && tg.sel.i === i ? ' sel' : '');
+      const at = (k, i) => '<g class="' + cls(k, i) + '" data-a="pick" data-k="' + k + '" data-i="' + i + '">';
+      tg.h.forEach((i) => { const g = G.hexes[i], on = tg.sel && tg.sel.k === 'h' && tg.sel.i === i; o += at('h', i) + '<polygon class="tgh" points="' + g.v.map((v) => f(G.verts[v].x) + ',' + f(G.verts[v].y)).join(' ') + '"/><circle class="tgr" cx="' + f(g.x) + '" cy="' + f(g.y) + '" r="30"/>' + (on ? '<g class="robber" transform="translate(' + f(g.x) + ',' + f(g.y - 2) + ') scale(1.5)"><ellipse cy="7" rx="9" ry="8"/><circle cy="-6" r="6"/></g>' : '') + '</g>'; });
+      tg.e.forEach((e) => { const ed = G.edges[e], a = G.verts[ed.a], b = G.verts[ed.b], m = G.mid(ed); const c = 'x1="' + f(a.x + (b.x - a.x) * 0.17) + '" y1="' + f(a.y + (b.y - a.y) * 0.17) + '" x2="' + f(b.x + (a.x - b.x) * 0.17) + '" y2="' + f(b.y + (a.y - b.y) * 0.17) + '"'; o += at('e', e) + '<line class="ghu" ' + c + '/><line class="ghl" ' + c + ' stroke="' + tg.col + '"/><circle class="tgx" cx="' + f(m.x) + '" cy="' + f(m.y) + '" r="19"/></g>'; });
+      const many = tg.v.length > 12; // 候補が多いとき（初期配置）は小さな点で見せ、えらんだ所だけ家の形にする
+      tg.v.forEach((v) => { const p = G.verts[v], on = tg.sel && tg.sel.k === 'v' && tg.sel.i === v; o += at('v', v) + '<circle class="tgx" cx="' + f(p.x) + '" cy="' + f(p.y) + '" r="21"/>' + (many && !on ? '<circle class="ghd" cx="' + f(p.x) + '" cy="' + f(p.y) + '" r="6.5" fill="' + tg.col + '"/>' : '<path class="gh" transform="translate(' + f(p.x) + ',' + f(p.y) + ')" d="' + HOUSE + '" fill="' + tg.col + '"/>') + '</g>'; });
+      tg.c.forEach((v) => { const p = G.verts[v]; o += at('c', v) + '<circle class="tgx" cx="' + f(p.x) + '" cy="' + f(p.y) + '" r="21"/><path class="gh" transform="translate(' + f(p.x) + ',' + f(p.y) + ')" d="' + CITY + '" fill="' + tg.col + '"/><text class="ghup" x="' + f(p.x) + '" y="' + f(p.y - 15) + '">▲</text></g>'; });
     }
     return o + '</svg>';
   }
@@ -549,10 +573,9 @@
       case 'roadbuilding': return mine ? '道を置く場所をタップ（あと' + S.freeRoads + '本）' : tn + ' が道を置いています';
       case 'main':
         if (!mine) return tn + ' の番' + (S.trade ? '（交渉中）' : '');
-        if (ui.mode === 'road') return '道を置く場所をタップ';
-        if (ui.mode === 'settle') return '開拓地を建てる場所をタップ';
-        if (ui.mode === 'city') return '都市にする開拓地をタップ';
-        return '建てる・交換する。終わったらターン終了';
+        { const t = targets(), n = t.v.length + t.c.length + t.e.length;
+          if (ui.mode) return n ? '光っている場所をタップ →「建てる」で決定' : '置ける場所がありません';
+          return n ? '光っている場所をタップすると建てられます' : '交換するか、ターン終了'; }
       case 'over': return esc(S.players[S.winner].name) + ' の勝ち！';
     }
     return '';
@@ -579,14 +602,13 @@
     if (m < 0 || S.phase === 'over') return '<div class="acts"><button class="ab" data-a="sheet" data-i="log">記録</button><button class="ab" data-a="sheet" data-i="cost">コスト表</button><button class="ab" data-a="leave">' + (room.local ? 'やめる' : '部屋を出る') + '</button></div>';
     const p = S.players[m], mine = m === S.turn, main = mine && S.phase === 'main';
     const b = (a, i, label, sub, en, cls) => '<button class="ab' + (cls ? ' ' + cls : '') + '" data-a="' + a + '"' + (i ? ' data-i="' + i + '"' : '') + (en ? '' : ' disabled') + '>' + label + (sub ? '<small>' + sub + '</small>' : '') + '</button>';
-    const devN = p.dev.length + p.devNew.length;
+    const devN = p.dev.length + p.devNew.length, col = PCOL[m];
+    const piece = (k) => '<svg class="pi" viewBox="-15 -14 30 28" aria-hidden="true">' + (k === 'road' ? '<line x1="-9" y1="6" x2="9" y2="-6" stroke="#17303d" stroke-width="9" stroke-linecap="round"/><line x1="-9" y1="6" x2="9" y2="-6" stroke="' + col + '" stroke-width="5.5" stroke-linecap="round"/>' : k === 'dev' ? '<rect x="-8" y="-11" width="16" height="22" rx="3" fill="#fff" stroke="#17303d" stroke-width="2"/><text x="0" y="5" text-anchor="middle" font-size="13" font-weight="900" fill="#17303d">?</text>' : '<path d="' + (k === 'settle' ? HOUSE : CITY) + '" fill="' + col + '" stroke="#17303d" stroke-width="2" stroke-linejoin="round"/>') + '</svg>';
+    const bb = (k, label, cost, left) => { const lack = lackHtml(p, cost), ok = main && !whyNot(k, m); return '<button class="ab bld2' + (ui.mode === k ? ' sel' : '') + (ok ? '' : ' off') + '" data-a="' + (k === 'dev' ? 'buyDev' : 'mode') + '" data-i="' + k + '"' + (main ? '' : ' disabled') + '>' + piece(k) + '<span>' + label + (left === null ? '' : '<i>' + left + '</i>') + '</span>' + (main && lack ? '<small class="lk">あと' + lack + '</small>' : '<small>' + costHtml(cost) + '</small>') + '</button>'; };
     let o = '<div class="acts">';
     if (mine && S.phase === 'roll') o += '<button class="ab pri wide" data-a="roll">🎲 サイコロを振る</button>';
     else {
-      o += b('mode', 'road', '道', costHtml(E.COST.road), main && p.roadsLeft > 0 && E.canAfford(p, E.COST.road), ui.mode === 'road' ? 'sel' : '');
-      o += b('mode', 'settle', '開拓地', costHtml(E.COST.settlement), main && p.settlementsLeft > 0 && E.canAfford(p, E.COST.settlement), ui.mode === 'settle' ? 'sel' : '');
-      o += b('mode', 'city', '都市', costHtml(E.COST.city), main && p.citiesLeft > 0 && E.canAfford(p, E.COST.city) && E.legalCities(S, m).length > 0, ui.mode === 'city' ? 'sel' : '');
-      o += b('buyDev', '', '発展を買う', costHtml(E.COST.dev), main && S.devDeck.length > 0 && E.canAfford(p, E.COST.dev));
+      o += bb('road', '道', E.COST.road, p.roadsLeft) + bb('settle', '開拓地', E.COST.settlement, p.settlementsLeft) + bb('city', '都市', E.COST.city, p.citiesLeft) + bb('dev', '発展', E.COST.dev, null);
       o += b('sheet', 'trade', '交換', '', main);
     }
     o += b('sheet', 'dev', 'カード', devN ? devN + '枚' : '', devN > 0);
@@ -685,8 +707,15 @@
     const m = meSeat();
     const dice = S.dice ? '<span class="dice"><b>' + S.dice[0] + '</b><b>' + S.dice[1] + '</b></span>' : '';
     const mine = m === S.turn && S.phase !== 'over';
-    return '<div class="game">' + playersHtml(m) + (room.netMsg ? '<div class="netbar">' + esc(room.netMsg) + '</div>' : '') + '<div class="sea">' + boardSVG(S, targets(), fx, reveal) + (room.local ? '' : '<span class="rcode">部屋 ' + esc(room.code) + '</span>') + rollPop() + '</div>'
-      + '<div class="status' + (mine ? ' mine' : '') + '">' + dice + '<span>' + statusText(m) + '</span></div>' + handHtml(m) + actionsHtml(m) + sheetHtml(m) + '</div>';
+    const tg = targets(), sel = inTargets(tg, ui.sel) ? ui.sel : null; tg.sel = sel;
+    let bar;
+    if (sel) {
+      const free = S.phase === 'setup' || S.phase === 'roadbuilding';
+      const label = sel.k === 'h' ? '盗賊をここへ動かす' : sel.k === 'v' ? (free ? '開拓地をここに置く' : '開拓地を建てる <small>' + costHtml(E.COST.settlement) + '</small>') : sel.k === 'c' ? '都市にする <small>' + costHtml(E.COST.city) + '</small>' : S.phase === 'roadbuilding' ? '道をここに置く（無料）' : free ? '道をここに置く' : '道を置く <small>' + costHtml(E.COST.road) + '</small>';
+      bar = '<div class="status mine cf"><span>' + label + '</span><button class="okb" data-a="ok">' + (sel.k === 'h' ? '動かす' : free ? '置く' : '建てる') + '</button><button class="nob" data-a="no">やめる</button></div>';
+    } else bar = '<div class="status' + (mine ? ' mine' : '') + '">' + dice + '<span>' + statusText(m) + '</span></div>';
+    return '<div class="game">' + playersHtml(m) + (room.netMsg ? '<div class="netbar">' + esc(room.netMsg) + '</div>' : '') + '<div class="sea">' + boardSVG(S, tg, fx, reveal) + (room.local ? '' : '<span class="rcode">部屋 ' + esc(room.code) + '</span>') + rollPop() + '</div>'
+      + bar + handHtml(m) + actionsHtml(m) + sheetHtml(m) + '</div>';
   }
   function render() {
     const app = $('#app');
@@ -701,7 +730,9 @@
     if (ev.target.id === 'code') { codeInput = normCode(ev.target.value); if (ev.target.value !== codeInput) ev.target.value = codeInput; }
   });
   document.addEventListener('click', (ev) => {
-    const el = ev.target.closest('[data-a]'); if (!el || el.disabled) return;
+    const el = ev.target.closest('[data-a]');
+    if (!el) { if (ui.sel && ev.target.closest && ev.target.closest('.board')) { ui.sel = null; render(); } return; }
+    if (el.disabled) return;
     const a = el.dataset.a, i = el.dataset.i, m = meSeat();
     switch (a) {
       case 'create': createRoom(); break;
@@ -715,14 +746,13 @@
       case 'start': startGame(); break;
       case 'leave': leaveRoom(); ls.set('shima.room', ''); screen = 'home'; ui = blankUi(); render(); break;
       case 'view': if (room && room.local && !room.cpu) { ui.view = +i; ui.mode = null; ui.sheet = null; render(); } break;
-      case 'v': act({ t: 'placeSettlement', v: +i }); break;
-      case 'c': act({ t: 'buildCity', v: +i }); break;
-      case 'e': act({ t: 'placeRoad', e: +i }); break;
-      case 'h': act({ t: 'moveRobber', h: +i }); break;
+      case 'pick': ui.sel = { k: el.dataset.k, i: +i }; buzz(6); render(); break;
+      case 'no': ui.sel = null; render(); break;
+      case 'ok': { const x = ui.sel; ui.sel = null; if (!x) break; const a = x.k === 'v' ? { t: 'placeSettlement', v: x.i } : x.k === 'c' ? { t: 'buildCity', v: x.i } : x.k === 'e' ? { t: 'placeRoad', e: x.i } : { t: 'moveRobber', h: x.i }; if (!act(a)) render(); break; }
       case 'roll': act({ t: 'roll' }); break;
       case 'endTurn': act({ t: 'endTurn' }); break;
-      case 'buyDev': if (act({ t: 'buyDev' })) { const d = S.players[m].devNew; toast(E.DEV_JA[d[d.length - 1]] + ' を引いた'); } break;
-      case 'mode': ui.mode = ui.mode === i ? null : i; render(); break;
+      case 'buyDev': { const w = whyNot('dev', m); if (w) { toast(w); break; } } if (act({ t: 'buyDev' })) { const d = S.players[m].devNew; toast(E.DEV_JA[d[d.length - 1]] + ' を引いた'); } break;
+      case 'mode': { const w = whyNot(i, m); if (w) { toast(w); break; } ui.mode = ui.mode === i ? null : i; ui.sel = null; render(); break; }
       case 'sheet': ui.sheet = i; if (i === 'trade') { ui.give = E.zero(); ui.want = E.zero(); ui.bankGive = null; ui.bankGet = null; } render(); break;
       case 'close': ui.sheet = null; render(); break;
       case 'tab': ui.tab = i; render(); break;

@@ -89,6 +89,15 @@ input.code{letter-spacing:.3em;text-transform:uppercase;font-variant-numeric:tab
 .rdo{stroke:var(--ink);stroke-width:10;stroke-linecap:round}.rd{stroke-width:6;stroke-linecap:round}
 .bld{stroke:var(--ink);stroke-width:2;stroke-linejoin:round}
 .tg{cursor:pointer}
+.gh{stroke:var(--ink);stroke-width:2;stroke-dasharray:3 2.5;stroke-linejoin:round;opacity:.62;animation:pulse 1.2s ease-in-out infinite}
+.tg.sel .gh{opacity:1;stroke:var(--coral);stroke-width:4;stroke-dasharray:none;animation:none}
+.ghu{stroke:var(--ink);stroke-width:10;stroke-linecap:round;opacity:.4}
+.ghl{stroke-width:6;stroke-linecap:round;opacity:.7;animation:pulse 1.2s ease-in-out infinite}
+.tg.sel .ghu{stroke:var(--coral);stroke-width:14;opacity:1}.tg.sel .ghl{opacity:1;animation:none}
+.ghd{stroke:var(--ink);stroke-width:1.5;opacity:.75;animation:pulse 1.2s ease-in-out infinite}
+.ghup{font-size:11px;text-anchor:middle;fill:#fff;stroke:var(--ink);stroke-width:2.5;paint-order:stroke;font-weight:900;pointer-events:none}
+.tg.sel .tgr{stroke:var(--coral);stroke-width:6;stroke-dasharray:none;animation:none}
+.tg.sel .robber{opacity:.9}
 .tgx{fill:transparent}
 .tgd{fill:#fff;fill-opacity:.85;stroke:var(--coral);stroke-width:3;animation:pulse 1.2s ease-in-out infinite}
 .tgl{stroke:#fff;stroke-width:7;stroke-linecap:round;stroke-opacity:.85;stroke-dasharray:1 0;animation:pulse 1.2s ease-in-out infinite}
@@ -124,10 +133,13 @@ input.code{letter-spacing:.3em;text-transform:uppercase;font-variant-numeric:tab
 .rc .plus{position:absolute;top:-13px;right:-3px;background:var(--teal);color:#fff;font-style:normal;font-weight:900;font-size:13px;line-height:1.4;border-radius:99px;padding:0 7px;animation:plus 1.7s both}
 @keyframes plus{0%{transform:translateY(8px);opacity:0}15%{transform:translateY(0);opacity:1}80%{opacity:1}100%{opacity:0}}
 @media (prefers-reduced-motion:reduce){.cov{animation:none}.fxhex,.fxdim,.rollpop,.pg,.rc.up,.rc .plus{animation:none}.fxtok,.fxfly{animation:none;opacity:1}.fxtok{transform:scale(1.45)}.fxdim{fill-opacity:.5}}
-@media (prefers-reduced-motion:reduce){.tgd,.tgl,.tgr{animation:none}}
+@media (prefers-reduced-motion:reduce){.tgd,.tgl,.tgr,.gh,.ghl,.ghd{animation:none}}
 .netbar{background:#a23a16;color:#fff;font-size:12.5px;font-weight:700;padding:4px 10px;text-align:center;margin-top:5px}
 .status{background:var(--ink);color:#fff;font-weight:700;font-size:13.5px;padding:7px 12px;display:flex;align-items:center;gap:10px;min-height:38px}
 .status.mine{background:var(--coral)}
+.status.cf{padding:5px 8px 5px 12px;min-height:46px}.status.cf span{flex:1;font-size:14.5px}.status.cf small{font-size:13px;margin-left:4px}
+.okb,.nob{border:2px solid var(--ink);border-radius:10px;min-height:36px;padding:0 14px;font-weight:900;font-size:14.5px;box-shadow:0 2px 0 var(--ink)}
+.okb{background:#fff;color:var(--ink);min-width:74px}.nob{background:transparent;color:#fff;border-color:rgba(255,255,255,.7);box-shadow:none;font-weight:700;padding:0 10px}
 .dice{display:flex;gap:4px}.dice b{background:#fff;color:var(--ink);border-radius:6px;width:24px;height:24px;display:grid;place-items:center;font-weight:900}
 .hand{background:var(--sand);display:grid;grid-template-columns:repeat(5,1fr);gap:5px;padding:7px 8px 4px}
 .rc{background:#fff;border-radius:10px;padding:3px 4px;display:flex;align-items:center;justify-content:center;gap:3px;font-size:17px}
@@ -139,6 +151,9 @@ input.code{letter-spacing:.3em;text-transform:uppercase;font-variant-numeric:tab
 .ab:disabled{opacity:.4;box-shadow:none}
 .ab.pri{background:var(--coral);color:#fff}.ab.sel{background:var(--ink);color:#fff}
 .ab.wide{grid-column:span 2;font-size:15px}
+.ab.bld2{min-height:66px;gap:0;padding:2px}.ab.bld2 .pi{width:30px;height:26px}.ab.bld2 span{display:flex;align-items:baseline;gap:3px}.ab.bld2 i{font-style:normal;font-size:10px;font-weight:700;color:var(--ink-2)}
+.ab.bld2.off{opacity:.5;box-shadow:none}.ab.bld2.off .pi{filter:grayscale(1)}.ab.bld2 .lk{color:#a23a16;font-weight:900}
+.ab.bld2.sel i,.ab.bld2.sel .lk{color:#fff}
 .scrim{position:absolute;inset:0;background:rgba(9,30,44,.5)}
 .sheet{position:absolute;left:0;right:0;bottom:0;max-height:78%;overflow:auto;background:var(--sand);border-radius:20px 20px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:12px;box-shadow:0 -8px 30px rgba(0,0,0,.35)}
 .x{position:absolute;right:10px;top:8px;width:40px;height:40px;border:0;background:transparent;font-size:24px;color:var(--ink-2)}
