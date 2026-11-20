@@ -1,4 +1,4 @@
-// ひらけ島 ルールエンジン（六角タイルの開拓ゲーム・3〜4人の基本ルール）
+// HEXA ISLAND ルールエンジン（六角タイルの開拓ゲーム・3〜4人の基本ルール）
 // 状態 S はただの JSON。apply(S, seat, action) が S を書き換え、{ok:true} か {err:'理由'} を返す。
 (function (root) {
   'use strict';

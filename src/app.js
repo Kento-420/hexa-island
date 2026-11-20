@@ -1,4 +1,4 @@
-// ひらけ島 画面と部屋（同期）
+// HEXA ISLAND 画面と部屋（同期）
 (function () {
   'use strict';
   const E = window.Shima, G = E.G, RES = E.RES, JA = E.RES_JA;
@@ -451,7 +451,7 @@
     const saved = ls.get('shima.room');
     const off = net !== 'on' && net !== 'peer';
     let o = '<div class="home"><div class="hero">' + boardSVG(demo, null) + '</div><div class="card">';
-    o += '<h1>ひらけ島</h1><p class="lead">六角の島を切りひらく、3〜4人の資源あつめと陣取り。10点で勝ち。</p>';
+    o += '<h1>HEXA ISLAND</h1><p class="lead">六角の島を切りひらく、3〜4人の資源あつめと陣取り。10点で勝ち。</p>';
     o += '<div class="sep">CPUと遊ぶ</div><div class="seg" role="group" aria-label="CPUの強さ">' + [[1, 'よわい'], [2, 'ふつう'], [3, 'つよい']].map((x) => '<button class="' + (cpuLevel === x[0] ? 'on' : '') + '" data-a="lv" data-i="' + x[0] + '" aria-pressed="' + (cpuLevel === x[0]) + '">' + x[1] + '</button>').join('') + '</div><div class="row2"><button class="btn pri" data-a="cpu" data-i="3">CPU 2人と</button><button class="btn pri" data-a="cpu" data-i="4">CPU 3人と</button></div><div class="sep">友達とオンライン</div>';
     o += '<label class="fld" for="name">あなたの名前<input id="name" maxlength="8" autocomplete="off" placeholder="8文字まで" value="' + esc(myName) + '"></label>';
     o += '<button class="btn" data-a="create"' + (off || busy ? ' disabled' : '') + '>部屋を作る</button>';

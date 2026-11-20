@@ -1,4 +1,4 @@
-// ひらけ島 CPUの考え方（1手ずつ決める）
+// HEXA ISLAND CPUの考え方（1手ずつ決める）
 (function (root) {
   'use strict';
   const E = root.Shima || require('./engine.js');

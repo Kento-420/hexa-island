@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ひらけ島</title>
+<title>HEXA ISLAND</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
 <style>
@@ -33,7 +33,7 @@ small{font-size:.72em;font-weight:500}
 .hero{background:radial-gradient(ellipse at center,var(--sea) 0%,var(--sea-deep) 75%);border-radius:20px;padding:6px;max-height:34vh;display:flex}
 .hero .board{max-height:32vh}
 .card{background:var(--sand);border-radius:20px;padding:20px 18px;display:flex;flex-direction:column;gap:12px}
-h1{font-family:var(--display);font-weight:400;font-size:38px;line-height:1.1;margin:0;letter-spacing:.04em;color:var(--sea-deep)}
+h1{font-family:var(--display);font-weight:400;font-size:clamp(26px,9vw,36px);line-height:1.1;margin:0;letter-spacing:.03em;white-space:nowrap;color:var(--sea-deep)}
 h2{font-size:18px;font-weight:900;margin:0;text-wrap:balance}
 .lead{margin:0;color:var(--ink-2)}
 .eyebrow{margin:0;font-size:12px;font-weight:700;color:var(--ink-2);letter-spacing:.08em}
@@ -168,7 +168,7 @@ input.code{letter-spacing:.3em;text-transform:uppercase;font-variant-numeric:tab
 <div id="toast" role="status" aria-live="polite"></div>
 <script src="peerjs.min.js"></script>
 <script>
-// ひらけ島 ルールエンジン（六角タイルの開拓ゲーム・3〜4人の基本ルール）
+// HEXA ISLAND ルールエンジン（六角タイルの開拓ゲーム・3〜4人の基本ルール）
 // 状態 S はただの JSON。apply(S, seat, action) が S を書き換え、{ok:true} か {err:'理由'} を返す。
 (function (root) {
   'use strict';
@@ -622,7 +622,7 @@ input.code{letter-spacing:.3em;text-transform:uppercase;font-variant-numeric:tab
 
 </script>
 <script>
-// ひらけ島 CPUの考え方（1手ずつ決める）
+// HEXA ISLAND CPUの考え方（1手ずつ決める）
 (function (root) {
   'use strict';
   const E = root.Shima || require('./engine.js');
@@ -788,7 +788,7 @@ input.code{letter-spacing:.3em;text-transform:uppercase;font-variant-numeric:tab
 
 </script>
 <script>
-// ひらけ島 画面と部屋（同期）
+// HEXA ISLAND 画面と部屋（同期）
 (function () {
   'use strict';
   const E = window.Shima, G = E.G, RES = E.RES, JA = E.RES_JA;
@@ -1241,7 +1241,7 @@ input.code{letter-spacing:.3em;text-transform:uppercase;font-variant-numeric:tab
     const saved = ls.get('shima.room');
     const off = net !== 'on' && net !== 'peer';
     let o = '<div class="home"><div class="hero">' + boardSVG(demo, null) + '</div><div class="card">';
-    o += '<h1>ひらけ島</h1><p class="lead">六角の島を切りひらく、3〜4人の資源あつめと陣取り。10点で勝ち。</p>';
+    o += '<h1>HEXA ISLAND</h1><p class="lead">六角の島を切りひらく、3〜4人の資源あつめと陣取り。10点で勝ち。</p>';
     o += '<div class="sep">CPUと遊ぶ</div><div class="seg" role="group" aria-label="CPUの強さ">' + [[1, 'よわい'], [2, 'ふつう'], [3, 'つよい']].map((x) => '<button class="' + (cpuLevel === x[0] ? 'on' : '') + '" data-a="lv" data-i="' + x[0] + '" aria-pressed="' + (cpuLevel === x[0]) + '">' + x[1] + '</button>').join('') + '</div><div class="row2"><button class="btn pri" data-a="cpu" data-i="3">CPU 2人と</button><button class="btn pri" data-a="cpu" data-i="4">CPU 3人と</button></div><div class="sep">友達とオンライン</div>';
     o += '<label class="fld" for="name">あなたの名前<input id="name" maxlength="8" autocomplete="off" placeholder="8文字まで" value="' + esc(myName) + '"></label>';
     o += '<button class="btn" data-a="create"' + (off || busy ? ' disabled' : '') + '>部屋を作る</button>';
