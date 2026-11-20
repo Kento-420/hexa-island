@@ -23,6 +23,7 @@ const E=require('./engine.js'),AI=require('./ai.js');const assert=(c,m)=>{if(!c)
  assert(E.apply(S,1,{t:'respondTrade',id:S.trade.id,ok:true}).err,'cannot plain-accept open');
  for(const lv of [1,2,3]){const a=AI.respond(S,1,lv);assert(a===false||(typeof a==='object'&&a.give.sheep===1&&E.total(a.want)>=1&&E.RES.every(r=>a.want[r]<=S.players[0].res[r])),'open-give answer lv'+lv+JSON.stringify(a));assert(AI.respond(S,2,lv)===false,'no sheep → decline');}
  const c=AI.respond(S,1,1);assert(c&&!E.apply(S,1,{t:'counterTrade',id:S.trade.id,give:c.give,want:c.want}).err&&!E.apply(S,0,{t:'acceptCounter',with:1}).err&&S.players[0].res.sheep===1,'open → counter → deal');
+ giveTo(0,'brick',1); // 直前の成立で土を渡していることがあるので、試験用に1枚足しておく
  assert(!E.apply(S,0,{t:'offerTrade',give:{brick:1},want:{}}).err&&S.trade.open==='want','open want');
  for(const lv of [1,2,3]){for(const o of [1,2]){const a=AI.respond(S,o,lv);assert(a===false||(typeof a==='object'&&a.want.brick===1&&E.canAfford(S.players[o],a.give)&&E.total(a.give)>=1),'open-want answer');}}
  E.RES.forEach(r=>assert(S.bank[r]+S.players.reduce((s,p)=>s+p.res[r],0)===19,'conserve2'));}
