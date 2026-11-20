@@ -165,7 +165,7 @@ input.code{letter-spacing:.3em;text-transform:uppercase;font-variant-numeric:tab
 .log{margin:0;padding:0 0 0 2px;list-style:none;display:flex;flex-direction:column;gap:3px;font-size:13px;max-height:38vh;overflow:auto}
 .log li{padding:4px 8px;background:#fff;border-radius:8px}
 .cost{width:100%;border-collapse:collapse;font-size:14px}.cost th{text-align:left;font-weight:700;padding:6px 4px}.cost td{padding:6px 4px;border-top:1.5px solid var(--sand-2)}.cost th{border-top:1.5px solid var(--sand-2)}.cost tr:first-child>*{border-top:0}
-#toast{position:fixed;left:50%;top:14%;transform:translate(-50%,-8px);background:var(--ink);color:#fff;font-weight:700;font-size:14px;padding:9px 16px;border-radius:99px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:88%;text-align:center;z-index:10;box-shadow:0 4px 18px rgba(0,0,0,.35)}
+#toast{position:fixed;left:50%;top:14%;transform:translate(-50%,-8px);background:var(--ink);color:#fff;font-weight:700;font-size:14px;padding:9px 16px;border-radius:18px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:88%;width:max-content;text-align:center;z-index:10;box-shadow:0 4px 18px rgba(0,0,0,.35)}
 #toast.show{opacity:1;transform:translate(-50%,0)}
 @media (prefers-reduced-motion:reduce){#toast{transition:none}}
 </style>
@@ -967,7 +967,17 @@ input.code{letter-spacing:.3em;text-transform:uppercase;font-variant-numeric:tab
   // 振動（対応している端末だけ。設定は端末に残る）
   const canVib = typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
   let vibOn = ls.get('shima.vib') !== '0';
-  const buzz = (p) => { if (!canVib || !vibOn) return; try { navigator.vibrate(p); } catch (e) { /* 対応していなければ何もしない */ } };
+  // 短すぎる振動は多くのAndroid端末で感じ取れないので、長さを底上げして送る
+  const buzz = (p) => {
+    if (!canVib || !vibOn) return;
+    const arr = (Array.isArray(p) ? p : [p]).map((x, i) => (i % 2 ? Math.max(70, x) : Math.max(45, Math.round(x * 2.2))));
+    try { navigator.vibrate(arr); } catch (e) { /* 対応していなければ何もしない */ }
+  };
+  function vibTest() {
+    if (!canVib) { toast('このブラウザは振動に対応していません。Chromeで開いてください'); return; }
+    let ok = false; try { ok = navigator.vibrate([250, 120, 250]); } catch (e) { ok = false; }
+    toast(ok ? '振動を送りました。震えなければ、本体のマナーモード・おやすみモード・省電力と「バイブと触覚」の設定を見てください' : 'ブラウザに振動を止められました。Chromeで直接このページを開いてください');
+  }
   let lastTradeId = 0, lastCounterN = 0, lastOver = '';
   let fx = null, fxTimer = null, lastGainKey = '', handFx = null, handTimer = null, prevHand = null, cpuTimer = null;
   const dl = (t) => 'style="animation-delay:-' + Math.max(0, Date.now() - t) + 'ms"';
@@ -977,7 +987,7 @@ input.code{letter-spacing:.3em;text-transform:uppercase;font-variant-numeric:tab
   const sid = () => String(store.uid).replace(/[^A-Za-z0-9_~:@+-]/g, '_');
 
   let toastTimer = null;
-  function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2600); }
+  function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove("show"), Math.max(2600, t.length * 110)); }
 
   // ---------- 部屋 ----------
   const makeCode = () => { let s = ''; for (let i = 0; i < 4; i++) s += ALPHA[Math.floor(Math.random() * ALPHA.length)]; return s; };
@@ -1310,6 +1320,7 @@ input.code{letter-spacing:.3em;text-transform:uppercase;font-variant-numeric:tab
     else if (net === 'peer') o += '<p class="note">ログイン不要。部屋を作った人の端末が親になります。</p>';
     else if (!store.canWrite) o += '<p class="note warn">今の共有設定では見るだけになります。持ち主に「編集者」として招待してもらってください。</p>';
     o += '<div class="sep">1台をまわして遊ぶ</div><div class="row3"><button class="btn" data-a="local" data-i="2">2人</button><button class="btn" data-a="local" data-i="3">3人</button><button class="btn" data-a="local" data-i="4">4人</button></div>';
+    o += '<button class="btn ghost" data-a="vibTest">振動テスト</button>';
     return o + '</div></div>';
   }
   const LVJA = { 1: 'よわい', 2: 'ふつう', 3: 'つよい' };
@@ -1462,7 +1473,7 @@ input.code{letter-spacing:.3em;text-transform:uppercase;font-variant-numeric:tab
       h = '<h2>' + (two ? '豊作：2枚えらぶ' : '独占：1種類えらぶ') + '</h2>' + miniHand(p) + '<div class="pick">' + RES.map((r) => '<button data-a="pk" data-i="' + r + '"' + (two && S.bank[r] < 1 ? ' disabled' : '') + '>' + ICON[r] + '<small>' + JA[r] + (two ? ' ' + ui.pick.filter((x) => x === r).length : '') + '</small></button>').join('') + '</div>';
       if (two) h += '<button class="btn pri" data-a="pkgo"' + (ui.pick.length === 2 ? '' : ' disabled') + '>もらう（' + ui.pick.length + '/2）</button><button class="btn ghost" data-a="pkclr">えらび直す</button>';
     } else if (kind === 'log') {
-      h = '<h2>記録</h2><ol class="log">' + S.log.slice().reverse().map((t) => '<li>' + esc(t) + '</li>').join('') + '</ol><button class="btn ghost" data-a="sheet" data-i="cost">コスト表を見る</button>' + (canVib ? '<button class="btn ghost" data-a="vib">振動：' + (vibOn ? 'オン（押すとオフ）' : 'オフ（押すとオン）') + '</button>' : '<p class="note">この端末のブラウザは振動に対応していません。</p>') + (S.phase !== 'over' ? '<button class="btn ghost" data-a="leave">' + (room.local ? 'ゲームをやめる' : '部屋を出る') + '</button>' : '');
+      h = '<h2>記録</h2><ol class="log">' + S.log.slice().reverse().map((t) => '<li>' + esc(t) + '</li>').join('') + '</ol><button class="btn ghost" data-a="sheet" data-i="cost">コスト表を見る</button>' + (canVib ? '<button class="btn ghost" data-a="vib">振動：' + (vibOn ? 'オン（押すとオフ）' : 'オフ（押すとオン）') + '</button>' : '') + '<button class="btn ghost" data-a="vibTest">振動テスト</button>' + (S.phase !== 'over' ? '<button class="btn ghost" data-a="leave">' + (room.local ? 'ゲームをやめる' : '部屋を出る') + '</button>' : '');
     } else if (kind === 'cost') {
       h = '<h2>コスト表</h2><table class="cost"><tr><th>道</th><td>' + costHtml(E.COST.road) + '</td><td></td></tr><tr><th>開拓地</th><td>' + costHtml(E.COST.settlement) + '</td><td>1点</td></tr><tr><th>都市</th><td>' + costHtml(E.COST.city) + '</td><td>2点・資源2倍</td></tr><tr><th>発展カード</th><td>' + costHtml(E.COST.dev) + '</td><td></td></tr><tr><th>最長交易路</th><td>5本以上で最長</td><td>2点</td></tr><tr><th>最大騎士力</th><td>騎士3枚以上で最多</td><td>2点</td></tr></table><p class="note">自分の番に10点で勝ち。7が出たら、8枚以上持つ人は半分捨てます。</p>';
     }
@@ -1526,6 +1537,7 @@ input.code{letter-spacing:.3em;text-transform:uppercase;font-variant-numeric:tab
       case 'acceptCounter': act({ t: 'acceptCounter', with: +i }); break;
       case 'rejectCounter': act({ t: 'rejectCounter', with: +i }); break;
       case 'reoffer': { const t = S.trade, g = clone(t.give), w = clone(t.want); if (act({ t: 'cancelTrade' })) { ui.give = g; ui.want = w; ui.tab = 'player'; ui.sheet = 'trade'; render(); } break; }
+      case 'vibTest': vibTest(); break;
       case 'vib': vibOn = !vibOn; ls.set('shima.vib', vibOn ? '1' : '0'); buzz(30); render(); break;
       case 'counterOpen': { const t = S.trade, hand = S.players[m].res; ui.counter = true; ui.give = E.zero(); ui.want = E.zero(); RES.forEach((r) => { ui.give[r] = Math.min(t.want[r], hand[r]); ui.want[r] = t.give[r]; }); render(); break; }
       case 'counterBack': ui.counter = false; render(); break;
