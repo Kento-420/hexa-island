@@ -71,8 +71,13 @@ input.code{letter-spacing:.3em;text-transform:uppercase;font-variant-numeric:tab
 .pl.me .pn{text-decoration:underline;text-underline-offset:3px}
 .pn{display:flex;align-items:center;gap:4px;font-size:12px;font-weight:700;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pv{font-size:11px;display:flex;align-items:baseline;gap:3px}.pv b{font-size:19px;font-weight:900;font-variant-numeric:tabular-nums}
-.pv em{font-style:normal;font-size:10px;font-weight:700;background:var(--ink);color:#fff;border-radius:5px;padding:0 4px}
-.ps{font-size:10px;color:var(--ink-2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.pv{flex-wrap:wrap;row-gap:0}.pv em{font-style:normal;font-size:9.5px;font-weight:900;background:#f5b700;color:var(--ink);border-radius:5px;padding:0 4px;white-space:nowrap}
+.pst{position:relative;display:grid;grid-template-columns:1fr 1fr;gap:2px 4px;width:100%;margin-top:1px}
+.pst i{font-style:normal;font-size:10px;color:var(--ink-2);display:flex;align-items:baseline;justify-content:space-between;background:rgba(255,255,255,.6);border-radius:5px;padding:0 4px;white-space:nowrap}
+.pst i b{font-size:13px;font-weight:900;color:var(--ink);font-variant-numeric:tabular-nums}
+.pst i.hl{background:#f5b700;color:var(--ink)}
+.pst .pg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:12.5px}
+.pinfo th{font-weight:700;white-space:nowrap;width:1%;padding-right:12px}.pinfo small{color:var(--ink-2)}.pinfo tr.hl td,.pinfo tr.hl th{background:#fdf0c2}
 .sea{flex:1;min-height:0;position:relative;display:flex;background:radial-gradient(ellipse at center,var(--sea) 0%,var(--sea-deep) 78%)}
 .rcode{position:absolute;right:8px;top:6px;font-size:11px;font-weight:700;color:var(--foam);opacity:.8}
 .board{width:100%;height:100%;display:block;user-select:none;-webkit-user-select:none}
@@ -103,6 +108,14 @@ input.code{letter-spacing:.3em;text-transform:uppercase;font-variant-numeric:tab
 .tgl{stroke:#fff;stroke-width:7;stroke-linecap:round;stroke-opacity:.85;stroke-dasharray:1 0;animation:pulse 1.2s ease-in-out infinite}
 .tgh{fill:#fff;fill-opacity:0}.tgr{fill:none;stroke:#fff;stroke-width:3;stroke-dasharray:6 5;animation:pulse 1.2s ease-in-out infinite}
 @keyframes pulse{50%{opacity:.45}}
+/* 盗賊の移動 */
+.robmove{transform-box:fill-box;transform-origin:center;animation:robmove 3.2s ease-in-out both}
+@keyframes robmove{0%{transform:translate(var(--dx),var(--dy)) scale(1)}12%{transform:translate(var(--dx),var(--dy)) scale(1.9)}50%{transform:translate(0,0) scale(1.9)}62%{transform:translate(0,0) scale(1)}100%{transform:translate(0,0) scale(1)}}
+.robline{stroke:#fff;stroke-width:3.5;stroke-dasharray:7 6;stroke-linecap:round;pointer-events:none;animation:robfade 3.2s ease-out both}
+.robold{fill:none;stroke:#fff;stroke-width:2.5;stroke-dasharray:4 4;pointer-events:none;animation:robfade 3.2s ease-out both}
+.robring{fill:none;stroke:var(--coral);stroke-width:6;pointer-events:none;animation:robring 3.2s ease-out both}
+@keyframes robfade{0%{opacity:0}10%{opacity:.95}75%{opacity:.95}100%{opacity:0}}
+@keyframes robring{0%,45%{opacity:0}55%{opacity:1}65%{opacity:.4}75%{opacity:1}85%{opacity:.5}100%{opacity:0}}
 /* 開始時にタイルをめくる */
 .cov{pointer-events:none;transform-box:fill-box;transform-origin:center;animation:flip .5s ease-in both}
 .cov.still{animation:none}
@@ -127,6 +140,9 @@ input.code{letter-spacing:.3em;text-transform:uppercase;font-variant-numeric:tab
 @keyframes pop{0%{opacity:0;transform:translateX(-50%) scale(.6)}10%{opacity:1;transform:translateX(-50%) scale(1.12)}18%{transform:translateX(-50%) scale(1)}85%{opacity:1}100%{opacity:0;transform:translateX(-50%) scale(1)}}
 .pg{font-size:11.5px;font-weight:900;background:var(--teal);color:#fff;border-radius:6px;padding:0 5px;white-space:nowrap;max-width:100%;overflow:hidden;animation:pg 3.2s both}
 @keyframes pg{0%{transform:scale(.6)}12%{transform:scale(1.12)}22%{transform:scale(1)}100%{transform:scale(1)}}
+.pg.neg{background:#d1261c}
+.pick.dz button{border-style:dashed}.pick.dz .on{border-style:solid;border-color:#d1261c;box-shadow:0 0 0 2px #d1261c;background:#fdecea}
+.bar{height:8px;background:var(--sand-2);border-radius:99px;overflow:hidden}.bar i{display:block;height:100%;background:#d1261c;border-radius:99px;transition:width .15s}
 .rc{position:relative}
 .rc.up{box-shadow:0 0 0 3px var(--teal);animation:rcup 1.7s both}
 @keyframes rcup{0%{transform:scale(1)}15%{transform:scale(1.14)}30%{transform:scale(1)}100%{transform:scale(1)}}
@@ -138,7 +154,7 @@ input.code{letter-spacing:.3em;text-transform:uppercase;font-variant-numeric:tab
 .omk{font-size:14px;font-weight:700;color:var(--ink-2)}
 .rc .plus{position:absolute;top:-13px;right:-3px;background:var(--teal);color:#fff;font-style:normal;font-weight:900;font-size:13px;line-height:1.4;border-radius:99px;padding:0 7px;animation:plus 1.7s both}
 @keyframes plus{0%{transform:translateY(8px);opacity:0}15%{transform:translateY(0);opacity:1}80%{opacity:1}100%{opacity:0}}
-@media (prefers-reduced-motion:reduce){.cov{animation:none}.fxhex,.fxdim,.rollpop,.pg,.rc.up,.rc.down,.rc .plus{animation:none}.fxtok,.fxfly{animation:none;opacity:1}.fxtok{transform:scale(1.45)}.fxdim{fill-opacity:.5}}
+@media (prefers-reduced-motion:reduce){.robmove{animation:none}.cov{animation:none}.fxhex,.fxdim,.rollpop,.pg,.rc.up,.rc.down,.rc .plus{animation:none}.fxtok,.fxfly{animation:none;opacity:1}.fxtok{transform:scale(1.45)}.fxdim{fill-opacity:.5}}
 @media (prefers-reduced-motion:reduce){.tgd,.tgl,.tgr,.gh,.ghl,.ghd{animation:none}}
 .netbar{background:#a23a16;color:#fff;font-size:12.5px;font-weight:700;padding:4px 10px;text-align:center;margin-top:5px}
 .status{background:var(--ink);color:#fff;font-weight:700;font-size:13.5px;padding:7px 12px;display:flex;align-items:center;gap:10px;min-height:38px}
@@ -859,8 +875,8 @@ input.code{letter-spacing:.3em;text-transform:uppercase;font-variant-numeric:tab
   const E = window.Shima, G = E.G, RES = E.RES, JA = E.RES_JA;
   const ICON = { wood: '🌲', brick: '🧱', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const HEXCOL = { wood: '#2e7d4f', brick: '#c8643b', sheep: '#9fd06a', wheat: '#f0c64a', ore: '#8a94a6', desert: '#e6d3a3' };
-  const PCOL = ['#e5383b', '#2b7fd4', '#1c242b', '#9b51e0']; // 赤・青・黒・紫（白はタイルの上で見えにくかったので黒に）
-  const PEDGE = ['#17303d', '#17303d', '#ffffff', '#17303d']; // コマの縁取り。黒いコマだけ白い縁
+  const PCOL = ['#e5383b', '#2b7fd4', '#ffd21f', '#9b51e0']; // 赤・青・黄・紫（白は見えにくく、黒は盗賊と紛らわしかった）
+  const PEDGE = ['#17303d', '#17303d', '#17303d', '#17303d']; // コマの縁取り
   const ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1011,9 +1027,10 @@ input.code{letter-spacing:.3em;text-transform:uppercase;font-variant-numeric:tab
   let room = null;   // {code, local, host, seats, inputs, unsub, slow}
   let S = null, me = -1;
   let busy = false;
-  const blankUi = () => ({ sel: null, counter: false, mode: null, sheet: null, tab: 'bank', give: E.zero(), want: E.zero(), disc: E.zero(), bankGive: null, bankPick: [], pick: [], view: 0, sentDiscard: false, sentTrade: 0 });
+  const blankUi = () => ({ pv: 0, sel: null, counter: false, mode: null, sheet: null, tab: 'bank', give: E.zero(), want: E.zero(), disc: E.zero(), bankGive: null, bankPick: [], pick: [], view: 0, sentDiscard: false, sentTrade: 0 });
   let ui = blankUi();
   let lastTurnKey = '', lastStealRev = 0, lastMonoKey = '';
+  let robFx = null, robTimer = null, prevRob = null, chipFx = {}, chipTimer = null, prevNeed = null;
   // 開始時にタイルを伏せておき、外側から順にめくる
   let reveal = null, revealTimer = null, seenGame = '';
   const REVEAL_GAP = 90, REVEAL_ORDER = (function () { const idx = G.hexes.map((_, i) => i).sort((a, b) => { const A = G.hexes[a], B = G.hexes[b], da = Math.round(Math.hypot(A.x, A.y)), db = Math.round(Math.hypot(B.x, B.y)); return db - da || Math.atan2(A.y, A.x) - Math.atan2(B.y, B.x); }); const o = []; idx.forEach((h, k) => { o[h] = k; }); return o; })();
@@ -1141,7 +1158,7 @@ input.code{letter-spacing:.3em;text-transform:uppercase;font-variant-numeric:tab
   function startLocal(count) {
     leaveRoom();
     room = { code: null, local: true, unsub: [] };
-    const names = ['あか', 'あお', 'くろ', 'むらさき'].slice(0, count);
+    const names = ['あか', 'あお', 'きいろ', 'むらさき'].slice(0, count);
     S = E.newGame(names.map((nm, i) => ({ uid: 'local' + i, name: nm }))); ui = blankUi(); screen = 'game';
     afterChange();
   }
@@ -1172,7 +1189,7 @@ input.code{letter-spacing:.3em;text-transform:uppercase;font-variant-numeric:tab
   const cpuLv = (seat) => (room.local ? room.level : S.players[seat].cpu) || 2;
   function scheduleCpu() {
     if (cpuTimer || reveal) return; const pd = cpuPending(); if (!pd) return;
-    const delay = pd.kind !== 'turn' ? 450 : S.phase === 'roll' ? 900 : (fx && Date.now() - fx.t < 1500 ? 2100 : 700);
+    const delay = pd.kind !== 'turn' ? 450 : S.phase === 'roll' ? 900 : (fx && Date.now() - fx.t < 1500 ? 2100 : robFx && Date.now() - robFx.t < 1500 ? 2300 : 700);
     cpuTimer = setTimeout(cpuStep, delay);
   }
   function cpuStep() {
@@ -1271,12 +1288,24 @@ input.code{letter-spacing:.3em;text-transform:uppercase;font-variant-numeric:tab
     lastMonoKey = mk;
     // 新しいゲームの始まり：タイルを伏せた状態から順にめくる
     if (S.gameId !== seenGame) {
-      seenGame = S.gameId; lastTradeId = 0; lastCounterN = 0;
+      seenGame = S.gameId; lastTradeId = 0; lastCounterN = 0; prevRob = S.robber; prevNeed = {}; chipFx = {}; robFx = null;
       if (S.phase === 'setup' && S.setup.i === 0 && S.setup.need === 's') {
         reveal = { t: Date.now() }; clearTimeout(revealTimer);
         revealTimer = setTimeout(() => { reveal = null; buzz(25); if (screen === 'game' && S) { render(); scheduleCpu(); } }, REVEAL_GAP * G.hexes.length + 700);
       }
     }
+    // 盗賊が動いた：元の場所から滑らせ、行き先を囲む
+    if (prevRob !== null && S.robber !== prevRob) {
+      robFx = { t: Date.now(), from: prevRob, to: S.robber }; clearTimeout(robTimer);
+      robTimer = setTimeout(() => { robFx = null; if (screen === 'game' && S) render(); }, 3300);
+      const hx = S.hexes[S.robber], where = hx.res === 'desert' ? '砂漠' : ICON[hx.res] + hx.num;
+      const mine = m >= 0 && G.hexes[S.robber].v.some((v) => S.bld[v] && S.bld[v].p === m);
+      if (m !== S.turn || room.local && !room.cpu) { if (mine) { toast('盗賊があなたの ' + where + ' に来た（ここは資源が出ない）', 3800); buzz([50, 40, 50]); } else toast(esc(S.players[S.turn].name) + ' が盗賊を ' + where + ' へ動かした', 3000); }
+    }
+    prevRob = S.robber;
+    // 7の捨て札：捨て終わった人の席に「−○枚」を出す
+    if (prevNeed) Object.keys(prevNeed).forEach((k) => { if (!S.discardNeed[k]) { chipFx[k] = { t: Date.now(), n: prevNeed[k] }; clearTimeout(chipTimer); chipTimer = setTimeout(() => { chipFx = {}; if (screen === 'game' && S) render(); }, 3000); } });
+    prevNeed = clone(S.discardNeed);
     // 振動：交渉が届いた・逆提案が来た・決着
     if (S.trade) {
       if (S.trade.id !== lastTradeId) { lastTradeId = S.trade.id; lastCounterN = 0; if (m >= 0 && m !== S.turn && !room.local) buzz([25, 50, 25]); }
@@ -1341,7 +1370,7 @@ input.code{letter-spacing:.3em;text-transform:uppercase;font-variant-numeric:tab
   }
   const lackHtml = (p, cost) => RES.filter((r) => (cost[r] || 0) > p.res[r]).map((r) => ICON[r] + (cost[r] - p.res[r] > 1 ? cost[r] - p.res[r] : '')).join('');
   const f = (n) => n.toFixed(1);
-  function boardSVG(B, tg, gfx, cover) {
+  function boardSVG(B, tg, gfx, cover, rfx) {
     let o = '<svg class="board" viewBox="-262 -236 524 472" role="img" aria-label="盤面">';
     if (!cover) B.ports.forEach((p) => { // タイルを伏せている間は港も見せない
       const ed = G.edges[p.e], m = G.mid(ed), hx = G.hexes[ed.hexes[0]];
@@ -1361,7 +1390,7 @@ input.code{letter-spacing:.3em;text-transform:uppercase;font-variant-numeric:tab
         o += '<circle class="tok" cx="' + f(g.x) + '" cy="' + f(g.y + 10) + '" r="15"/><text class="num' + (hot ? ' hot' : '') + '" x="' + f(g.x) + '" y="' + f(g.y + 13) + '">' + h.num + '</text>';
         for (let k = 0; k < pips; k++) o += '<circle class="pip' + (hot ? ' hot' : '') + '" cx="' + f(g.x + (k - (pips - 1) / 2) * 4) + '" cy="' + f(g.y + 19.5) + '" r="1.3"/>';
       }
-      if (B.robber === i) o += '<g class="robber" transform="translate(' + f(g.x + (h.res === 'desert' ? 0 : 22)) + ',' + f(g.y + (h.res === 'desert' ? 0 : -6)) + ')"><ellipse cy="7" rx="9" ry="8"/><circle cy="-6" r="6"/></g>';
+
     });
     if (cover) B.hexes.forEach((h, i) => {
       const g = G.hexes[i], rel = g.v.map((v) => f(G.verts[v].x - g.x) + ',' + f(G.verts[v].y - g.y)).join(' ');
@@ -1384,6 +1413,15 @@ input.code{letter-spacing:.3em;text-transform:uppercase;font-variant-numeric:tab
       const d = b.t === 1 ? 'M-8,8V-2L0,-10L8,-2V8Z' : 'M-12,9V-4L-6,-11L0,-4V-1H12V9Z';
       o += '<path class="bld" transform="translate(' + f(G.verts[v].x) + ',' + f(G.verts[v].y) + ')" d="' + d + '" fill="' + PCOL[b.p] + '" style="stroke:' + PEDGE[b.p] + '"/>';
     });
+    if (!cover) {
+      const rp = (i) => { const g = G.hexes[i], des = B.hexes[i].res === 'desert'; return { x: g.x + (des ? 0 : 22), y: g.y + (des ? 0 : -6) }; };
+      const to = rp(B.robber), body = '<ellipse cy="7" rx="9" ry="8"/><circle cy="-6" r="6"/>';
+      if (rfx && rfx.to === B.robber) {
+        const fr = rp(rfx.from), g = G.hexes[B.robber], d = dl(rfx.t);
+        o += '<circle class="robold" ' + d + ' cx="' + f(fr.x) + '" cy="' + f(fr.y) + '" r="13"/><line class="robline" ' + d + ' x1="' + f(fr.x) + '" y1="' + f(fr.y) + '" x2="' + f(to.x) + '" y2="' + f(to.y) + '"/><circle class="robring" ' + d + ' cx="' + f(g.x) + '" cy="' + f(g.y) + '" r="40"/>';
+        o += '<g transform="translate(' + f(to.x) + ',' + f(to.y) + ')"><g class="robber robmove" style="--dx:' + f(fr.x - to.x) + 'px;--dy:' + f(fr.y - to.y) + 'px;animation-delay:-' + Math.max(0, Date.now() - rfx.t) + 'ms">' + body + '</g></g>';
+      } else o += '<g class="robber" transform="translate(' + f(to.x) + ',' + f(to.y) + ')">' + body + '</g>';
+    }
     if (gfx) {
       if (gfx.roll) gfx.hexes.forEach((i) => { const hx = G.hexes[i]; o += '<g transform="translate(' + f(hx.x) + ',' + f(hx.y + 10) + ')"><g class="fxtok" ' + dl(gfx.t) + '><circle r="15"/><text y="5">' + B.hexes[i].num + '</text></g></g>'; });
       const cnt = {};
@@ -1455,7 +1493,7 @@ input.code{letter-spacing:.3em;text-transform:uppercase;font-variant-numeric:tab
     switch (S.phase) {
       case 'setup': return mine ? (S.setup.need === 's' ? '開拓地を置く場所をタップ（' + (S.setup.i < S.players.length ? '1' : '2') + 'つ目）' : '今の開拓地から道を1本のばす') : tn + ' が初期配置中';
       case 'roll': return mine ? 'サイコロを振ってください' : tn + ' の番';
-      case 'discard': return S.discardNeed[m] ? '7が出た。' + S.discardNeed[m] + '枚捨ててください' : '7が出た。捨て札を待っています';
+      case 'discard': return S.discardNeed[m] ? '7が出た。' + S.discardNeed[m] + '枚捨ててください' : '7が出た。' + Object.keys(S.discardNeed).map((k) => esc(S.players[k].name)).join('・') + ' の捨て札を待っています';
       case 'robber': return mine ? '盗賊を動かすタイルをタップ' : tn + ' が盗賊を動かします';
       case 'steal': return mine ? 'だれから奪うか選んでください' : tn + ' が奪う相手を選んでいます';
       case 'roadbuilding': return mine ? '道を置く場所をタップ（あと' + S.freeRoads + '本）' : tn + ' が道を置いています';
@@ -1474,10 +1512,15 @@ input.code{letter-spacing:.3em;text-transform:uppercase;font-variant-numeric:tab
       const vp = s === m ? E.totalVP(S, s) : E.publicVP(S, s);
       o += '<button class="pl' + (s === S.turn && S.phase !== 'over' ? ' on' : '') + (s === m ? ' me' : '') + '" style="--pc:' + PCOL[s] + '" data-a="view" data-i="' + s + '">';
       o += '<span class="pn"><i class="dot"></i>' + esc(p.name) + '</span>';
-      o += '<span class="pv"><b>' + vp + '</b>点' + (S.longestRoad === s ? '<em>道</em>' : '') + (S.largestArmy === s ? '<em>騎</em>' : '') + '</span>';
+      const lr = S.longestRoad === s, la = S.largestArmy === s;
+      o += '<span class="pv"><b>' + vp + '</b>点' + (lr ? '<em>最長+2</em>' : '') + (la ? '<em>騎士+2</em>' : '') + '</span>';
       const gg = fx && fx.g[s] ? RES.filter((r) => fx.g[s][r]) : [];
-      if (gg.length) o += '<span class="pg" ' + dl(fx.t) + '>＋' + gg.map((r) => ICON[r] + (fx.g[s][r] > 1 ? fx.g[s][r] : '')).join('') + '</span></button>';
-      else o += '<span class="ps">札' + E.total(p.res) + ' 発' + (p.dev.length + p.devNew.length) + ' 騎' + p.knights + ' 道' + (S.roadLens[s] || 0) + '</span></button>';
+      const cf = chipFx[s] && Date.now() - chipFx[s].t < 3000 ? chipFx[s] : null;
+      // 手札・発展カード・使った騎士・いちばん長い道。称号を持っている項目は金色
+      o += '<span class="pst"><i>札<b>' + E.total(p.res) + '</b></i><i>発<b>' + (p.dev.length + p.devNew.length) + '</b></i><i class="' + (la ? 'hl' : '') + '">騎<b>' + p.knights + '</b></i><i class="' + (lr ? 'hl' : '') + '">道<b>' + (S.roadLens[s] || 0) + '</b></i>';
+      if (cf) o += '<span class="pg neg" ' + dl(cf.t) + '>−' + cf.n + '枚 捨てた</span>';
+      else if (gg.length) o += '<span class="pg" ' + dl(fx.t) + '>＋' + gg.map((r) => ICON[r] + (fx.g[s][r] > 1 ? fx.g[s][r] : '')).join('') + '</span>';
+      o += '</span></button>';
     });
     return o + '</div>';
   }
@@ -1526,10 +1569,14 @@ input.code{letter-spacing:.3em;text-transform:uppercase;font-variant-numeric:tab
       else h += '<p class="note">ホストが次のゲームを始められます。</p>';
       h += '<button class="btn ghost" data-a="leave">' + (room.local ? 'タイトルへ' : '部屋を出る') + '</button>';
     } else if (kind === 'discard') {
-      const need = S.discardNeed[m], sel = E.total(ui.disc);
-      h = '<h2>' + need + '枚捨てる</h2>';
+      const need = S.discardNeed[m], sel = E.total(ui.disc), tot = E.total(p.res);
+      h = '<h2>7が出た：' + need + '枚捨てる</h2><p class="note">手札が' + tot + '枚（8枚以上）なので、半分を捨てます。</p>';
       if (ui.sentDiscard) h += '<p class="note">送りました。反映を待っています…</p>';
-      else h += stepper('disc', (r) => (sel >= need ? ui.disc[r] : p.res[r]), p.res) + '<button class="btn pri" data-a="discard"' + (sel === need ? '' : ' disabled') + '>捨てる（' + sel + '/' + need + '）</button>';
+      else {
+        h += '<p class="eyebrow">手札（タップすると捨てる側へ）</p><div class="pick">' + RES.map((r) => { const left = p.res[r] - ui.disc[r]; return '<button data-a="st" data-k="disc" data-r="' + r + '" data-d="1"' + (left > 0 && sel < need ? '' : ' disabled') + ' aria-label="' + JA[r] + 'を捨てる側へ">' + ICON[r] + '<small>のこり' + left + '</small></button>'; }).join('') + '</div>';
+        h += '<p class="eyebrow">捨てる札 ' + sel + '/' + need + '（タップすると戻す）</p><div class="pick dz">' + RES.map((r) => '<button class="' + (ui.disc[r] ? 'on' : '') + '" data-a="st" data-k="disc" data-r="' + r + '" data-d="-1"' + (ui.disc[r] ? '' : ' disabled') + ' aria-label="' + JA[r] + 'を戻す">' + ICON[r] + '<small>' + (ui.disc[r] ? '×' + ui.disc[r] : '―') + '</small></button>').join('') + '</div>';
+        h += '<div class="bar"><i style="width:' + Math.round(sel / need * 100) + '%"></i></div><button class="btn pri" data-a="discard"' + (sel === need ? '' : ' disabled') + '>' + (sel === need ? need + '枚を捨てる' : 'あと' + (need - sel) + '枚えらぶ') + '</button>';
+      }
     } else if (kind === 'steal') {
       h = '<h2>だれから1枚うばう？</h2><div class="col">' + S.victims.map((s) => '<button class="btn" data-a="steal" data-i="' + s + '"><i class="dot" style="background:' + PCOL[s] + '"></i>' + esc(S.players[s].name) + '（札' + E.total(S.players[s].res) + '）</button>').join('') + '</div>';
     } else if (kind === 'tradeIn') {
@@ -1585,6 +1632,20 @@ input.code{letter-spacing:.3em;text-transform:uppercase;font-variant-numeric:tab
       const two = kind === 'plenty';
       h = '<h2>' + (two ? '豊作：2枚えらぶ' : '独占：1種類えらぶ') + '</h2>' + miniHand(p) + '<div class="pick">' + RES.map((r) => '<button data-a="pk" data-i="' + r + '"' + (two && S.bank[r] < 1 ? ' disabled' : '') + '>' + ICON[r] + '<small>' + JA[r] + (two ? ' ' + ui.pick.filter((x) => x === r).length : '') + '</small></button>').join('') + '</div>';
       if (two) h += '<button class="btn pri" data-a="pkgo"' + (ui.pick.length === 2 ? '' : ' disabled') + '>もらう（' + ui.pick.length + '/2）</button><button class="btn ghost" data-a="pkclr">えらび直す</button>';
+    } else if (kind === 'player' && S.players[ui.pv]) {
+      const s = ui.pv, q = S.players[s], isMe = s === m;
+      const nS = S.bld.filter((b) => b && b.p === s && b.t === 1).length, nC = S.bld.filter((b) => b && b.p === s && b.t === 2).length;
+      const lr = S.longestRoad === s, la = S.largestArmy === s, vpc = q.dev.concat(q.devNew).filter((c) => c === 'vp').length;
+      const ports = S.ports.filter((pt) => [G.edges[pt.e].a, G.edges[pt.e].b].some((v) => S.bld[v] && S.bld[v].p === s)).map((pt) => (pt.type === 'any' ? '3:1' : ICON[pt.type] + '2:1'));
+      const row = (k, v, hl) => '<tr class="' + (hl ? 'hl' : '') + '"><th>' + k + '</th><td>' + v + '</td></tr>';
+      h = '<h2><i class="dot" style="background:' + PCOL[s] + '"></i> ' + esc(q.name) + (isMe ? '（あなた）' : '') + '</h2><table class="cost pinfo">';
+      h += row('勝利点', '<b>' + (isMe ? E.totalVP(S, s) : E.publicVP(S, s)) + '点</b>' + (isMe ? '' : '（見えている分）'));
+      h += row('　開拓地', nS + 'つ（' + nS + '点）') + row('　都市', nC + 'つ（' + nC * 2 + '点）');
+      h += row('　最長交易路', lr ? '持っている（+2点）' : 'なし', lr) + row('　最大騎士力', la ? '持っている（+2点）' : 'なし', la);
+      if (isMe && vpc) h += row('　勝利点カード', vpc + '枚（' + vpc + '点・ほかの人には見えない）');
+      h += row('手札', E.total(q.res) + '枚' + (isMe ? '　' + bundle(q.res) : '')) + row('発展カード', (q.dev.length + q.devNew.length) + '枚（まだ使っていない分）');
+      h += row('使った騎士', q.knights + '枚' + (la ? '' : '　<small>3枚以上で最多なら+2点</small>'), la) + row('いちばん長い道', (S.roadLens[s] || 0) + '本' + (lr ? '' : '　<small>5本以上で最長なら+2点</small>'), lr);
+      h += row('港', ports.length ? ports.join('　') : 'なし') + row('残りのコマ', '道' + q.roadsLeft + '・開拓地' + q.settlementsLeft + '・都市' + q.citiesLeft) + '</table>';
     } else if (kind === 'log') {
       h = '<h2>記録</h2><ol class="log">' + S.log.slice().reverse().map((t) => '<li>' + esc(t) + '</li>').join('') + '</ol><button class="btn ghost" data-a="sheet" data-i="cost">コスト表を見る</button>' + (canVib ? '<button class="btn ghost" data-a="vib">振動の強さ：' + VIBJA[vibLv] + '（押すと切りかえ）</button>' : '') + '<button class="btn ghost" data-a="vibTest">振動テスト</button>' + (S.phase !== 'over' ? '<button class="btn ghost" data-a="leave">' + (room.local ? 'ゲームをやめる' : '部屋を出る') + '</button>' : '');
     } else if (kind === 'cost') {
@@ -1608,7 +1669,7 @@ input.code{letter-spacing:.3em;text-transform:uppercase;font-variant-numeric:tab
       const label = sel.k === 'h' ? '盗賊をここへ動かす' : sel.k === 'v' ? (free ? '開拓地をここに置く' : '開拓地を建てる <small>' + costHtml(E.COST.settlement) + '</small>') : sel.k === 'c' ? '都市にする <small>' + costHtml(E.COST.city) + '</small>' : S.phase === 'roadbuilding' ? '道をここに置く（無料）' : free ? '道をここに置く' : '道を置く <small>' + costHtml(E.COST.road) + '</small>';
       bar = '<div class="status mine cf"><span>' + label + '</span><button class="okb" data-a="ok">' + (sel.k === 'h' ? '動かす' : free ? '置く' : '建てる') + '</button><button class="nob" data-a="no">やめる</button></div>';
     } else bar = '<div class="status' + (mine ? ' mine' : '') + '">' + dice + '<span>' + statusText(m) + '</span></div>';
-    return '<div class="game">' + playersHtml(m) + (room.netMsg ? '<div class="netbar">' + esc(room.netMsg) + '</div>' : '') + '<div class="sea">' + boardSVG(S, tg, fx, reveal) + (room.local ? '' : '<span class="rcode">部屋 ' + esc(room.code) + '</span>') + rollPop() + '</div>'
+    return '<div class="game">' + playersHtml(m) + (room.netMsg ? '<div class="netbar">' + esc(room.netMsg) + '</div>' : '') + '<div class="sea">' + boardSVG(S, tg, fx, reveal, robFx) + (room.local ? '' : '<span class="rcode">部屋 ' + esc(room.code) + '</span>') + rollPop() + '</div>'
       + bar + handHtml(m) + actionsHtml(m) + sheetHtml(m) + '</div>';
   }
   function render() {
@@ -1639,7 +1700,7 @@ input.code{letter-spacing:.3em;text-transform:uppercase;font-variant-numeric:tab
       case 'lv': cpuLevel = +i; ls.set('shima.lv', String(cpuLevel)); render(); break;
       case 'start': startGame(); break;
       case 'leave': leaveRoom(); ls.set('shima.room', ''); screen = 'home'; ui = blankUi(); render(); break;
-      case 'view': if (room && room.local && !room.cpu) { ui.view = +i; ui.mode = null; ui.sheet = null; render(); } break;
+      case 'view': if (room && room.local && !room.cpu) { ui.view = +i; ui.mode = null; ui.sheet = null; ui.sel = null; render(); } else if (S) { ui.pv = +i; ui.sheet = 'player'; render(); } break;
       case 'pick': ui.sel = { k: el.dataset.k, i: +i }; buzz(6); render(); break;
       case 'no': ui.sel = null; render(); break;
       case 'ok': { const x = ui.sel; ui.sel = null; if (!x) break; const a = x.k === 'v' ? { t: 'placeSettlement', v: x.i } : x.k === 'c' ? { t: 'buildCity', v: x.i } : x.k === 'e' ? { t: 'placeRoad', e: x.i } : { t: 'moveRobber', h: x.i }; if (!act(a)) render(); break; }
