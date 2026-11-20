@@ -4,7 +4,8 @@
   const E = window.Shima, G = E.G, RES = E.RES, JA = E.RES_JA;
   const ICON = { wood: '🌲', brick: '🧱', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const HEXCOL = { wood: '#2e7d4f', brick: '#c8643b', sheep: '#9fd06a', wheat: '#f0c64a', ore: '#8a94a6', desert: '#e6d3a3' };
-  const PCOL = ['#e5383b', '#2b7fd4', '#f4f1e8', '#9b51e0'];
+  const PCOL = ['#e5383b', '#2b7fd4', '#1c242b', '#9b51e0']; // 赤・青・黒・紫（白はタイルの上で見えにくかったので黒に）
+  const PEDGE = ['#17303d', '#17303d', '#ffffff', '#17303d']; // コマの縁取り。黒いコマだけ白い縁
   const ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -271,7 +272,7 @@
   function startLocal(count) {
     leaveRoom();
     room = { code: null, local: true, unsub: [] };
-    const names = ['あか', 'あお', 'しろ', 'むらさき'].slice(0, count);
+    const names = ['あか', 'あお', 'くろ', 'むらさき'].slice(0, count);
     S = E.newGame(names.map((nm, i) => ({ uid: 'local' + i, name: nm }))); ui = blankUi(); screen = 'game';
     afterChange();
   }
@@ -490,12 +491,12 @@
       const a = G.verts[G.edges[e].a], b = G.verts[G.edges[e].b];
       const x1 = a.x + (b.x - a.x) * 0.17, y1 = a.y + (b.y - a.y) * 0.17, x2 = b.x + (a.x - b.x) * 0.17, y2 = b.y + (a.y - b.y) * 0.17;
       const c = 'x1="' + f(x1) + '" y1="' + f(y1) + '" x2="' + f(x2) + '" y2="' + f(y2) + '"';
-      o += '<line class="rdo" ' + c + '/><line class="rd" ' + c + ' stroke="' + PCOL[s] + '"/>';
+      o += '<line class="rdo" ' + c + ' style="stroke:' + PEDGE[s] + '"/><line class="rd" ' + c + ' stroke="' + PCOL[s] + '"/>';
     });
     B.bld.forEach((b, v) => {
       if (!b) return;
       const d = b.t === 1 ? 'M-8,8V-2L0,-10L8,-2V8Z' : 'M-12,9V-4L-6,-11L0,-4V-1H12V9Z';
-      o += '<path class="bld" transform="translate(' + f(G.verts[v].x) + ',' + f(G.verts[v].y) + ')" d="' + d + '" fill="' + PCOL[b.p] + '"/>';
+      o += '<path class="bld" transform="translate(' + f(G.verts[v].x) + ',' + f(G.verts[v].y) + ')" d="' + d + '" fill="' + PCOL[b.p] + '" style="stroke:' + PEDGE[b.p] + '"/>';
     });
     if (gfx) {
       if (gfx.roll) gfx.hexes.forEach((i) => { const hx = G.hexes[i]; o += '<g transform="translate(' + f(hx.x) + ',' + f(hx.y + 10) + ')"><g class="fxtok" ' + dl(gfx.t) + '><circle r="15"/><text y="5">' + B.hexes[i].num + '</text></g></g>'; });
@@ -506,7 +507,7 @@
           const b = B.bld[v]; if (!b || !(gfx.g[b.p] && gfx.g[b.p][res])) return;
           const k = cnt[v] = (cnt[v] || 0) + 1, p = G.verts[v];
           const tx = p.x + (k - 1) * 17, ty = p.y - 16, hx = G.hexes[i];
-          o += '<g transform="translate(' + f(tx) + ',' + f(ty) + ')"><g class="fxfly" style="--dx:' + f(hx.x - tx) + 'px;--dy:' + f(hx.y + 10 - ty) + 'px;animation-delay:-' + Math.max(0, Date.now() - gfx.t) + 'ms"><circle r="11" fill="' + PCOL[b.p] + '"/><text class="fxi" y="1">' + ICON[res] + '</text>' + (b.t === 2 ? '<text class="fxn" x="8" y="-8">×2</text>' : '') + '</g></g>';
+          o += '<g transform="translate(' + f(tx) + ',' + f(ty) + ')"><g class="fxfly" style="--dx:' + f(hx.x - tx) + 'px;--dy:' + f(hx.y + 10 - ty) + 'px;animation-delay:-' + Math.max(0, Date.now() - gfx.t) + 'ms"><circle r="11" fill="' + PCOL[b.p] + '" style="stroke:' + PEDGE[b.p] + '"/><text class="fxi" y="1">' + ICON[res] + '</text>' + (b.t === 2 ? '<text class="fxn" x="8" y="-8">×2</text>' : '') + '</g></g>';
         });
       });
     }
