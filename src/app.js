@@ -156,7 +156,7 @@
   let room = null;   // {code, local, host, seats, inputs, unsub, slow}
   let S = null, me = -1;
   let busy = false;
-  const blankUi = () => ({ pv: 0, sel: null, counter: false, mode: null, sheet: null, tab: 'bank', give: E.zero(), want: E.zero(), disc: E.zero(), bankGive: null, bankPick: [], pick: [], view: 0, sentDiscard: false, sentTrade: 0 });
+  const blankUi = () => ({ confirm: null, pv: 0, sel: null, counter: false, mode: null, sheet: null, tab: 'bank', give: E.zero(), want: E.zero(), disc: E.zero(), bankGive: null, bankPick: [], pick: [], view: 0, sentDiscard: false, sentTrade: 0 });
   let ui = blankUi();
   let lastTurnKey = '', lastStealRev = 0, lastMonoKey = '';
   let robFx = null, robTimer = null, prevRob = null, chipFx = {}, chipTimer = null, prevNeed = null;
@@ -263,7 +263,14 @@
     r.unsub.push(() => clearTimeout(timer));
     r.unsub.push(store.subDoc(base, (d) => { if (room !== r) return; r.host = d ? d.host : null; render(); }, onErr));
     r.unsub.push(store.subCol(base + '/seats', (l) => { if (room !== r) return; r.loaded = true; r.slow = false; clearTimeout(timer); r.seats = l.sort((a, b) => (a.t || 0) - (b.t || 0)); render(); }, onErr));
-    r.unsub.push(store.subDoc(base + '/live/state', (d) => { if (room !== r || !d) return; onState(d); }, onErr));
+    r.unsub.push(store.subDoc(base + '/live/state', (d) => {
+      if (room !== r) return;
+      if (!d) { // 親が「待合にもどる」を選んだ：全員を待合へ戻す
+        if (S && screen === 'game') { if (cpuTimer) { clearTimeout(cpuTimer); cpuTimer = null; } S = null; me = -1; screen = 'lobby'; ui = blankUi(); toast('待合にもどりました'); render(); }
+        return;
+      }
+      onState(d);
+    }, onErr));
     r.unsub.push(store.subCol(base + '/inputs', (l) => { if (room !== r) return; r.inputs = l; setTimeout(processInputs, 0); }, onErr));
   }
   function leaveRoom() { if (cpuTimer) { clearTimeout(cpuTimer); cpuTimer = null; } clearTimeout(revealTimer); reveal = null; fx = null; handFx = null; prevHand = null; if (room && room.pstore) { try { room.pstore.close(); } catch (e) { /* 無視 */ } if (store === room.pstore) store = null; } if (room && room.unsub) room.unsub.forEach((u) => { try { u(); } catch (e) { /* 無視 */ } }); room = null; S = null; me = -1; }
@@ -775,6 +782,18 @@
       h += row('手札', E.total(q.res) + '枚' + (isMe ? '　' + bundle(q.res) : '')) + row('発展カード', (q.dev.length + q.devNew.length) + '枚（まだ使っていない分）');
       h += row('使った騎士', q.knights + '枚' + (la ? '' : '　<small>3枚以上で最多なら+2点</small>'), la) + row('いちばん長い道', (S.roadLens[s] || 0) + '本' + (lr ? '' : '　<small>5本以上で最長なら+2点</small>'), lr);
       h += row('港', ports.length ? ports.join('　') : 'なし') + row('残りのコマ', '道' + q.roadsLeft + '・開拓地' + q.settlementsLeft + '・都市' + q.citiesLeft) + '</table>';
+    } else if (kind === 'menu') {
+      const host = room.local || (store && room.host === store.uid), over = S.phase === 'over';
+      const ask = { restart: ['最初からやり直す？', '今のゲームは消えて、新しい盤面で始まります。' + (room.local ? '' : '全員の画面が切りかわります。'), 'やり直す'], lobby: ['待合にもどる？', '今のゲームは消えます。全員が待合にもどり、メンバーやCPUを変えてから始め直せます。', 'もどる'], leave: [room.local ? 'タイトルにもどる？' : '部屋を出る？', room.local ? '今のゲームは消えます。' : (host ? 'あなたは親なので、出ると部屋が止まります。' : 'ゲームは続きます。同じコードでもどれます。'), room.local ? 'もどる' : '出る'] }[ui.confirm];
+      if (ask) h = '<h2>' + ask[0] + '</h2><p class="lead">' + ask[1] + '</p><div class="row2"><button class="btn pri" data-a="menuDo">' + ask[2] + '</button><button class="btn" data-a="menuNo">やめる</button></div>';
+      else {
+        h = '<h2>メニュー</h2><div class="col">';
+        if (host) h += '<button class="btn" data-a="menuAsk" data-i="restart">最初からやり直す</button>';
+        if (host && !room.local) h += '<button class="btn" data-a="menuAsk" data-i="lobby">待合にもどる（メンバーを変える）</button>';
+        if (!host) h += '<p class="note">やり直しと待合にもどる操作は、部屋を作った人（親）ができます。</p>';
+        h += '<button class="btn" data-a="menuAsk" data-i="leave">' + (room.local ? 'タイトルにもどる' : '部屋を出る') + '</button>';
+        h += '<button class="btn ghost" data-a="sheet" data-i="log">記録を見る</button><button class="btn ghost" data-a="sheet" data-i="cost">コスト表を見る</button>' + (canVib ? '<button class="btn ghost" data-a="vib">振動の強さ：' + VIBJA[vibLv] + '（押すと切りかえ）</button>' : '') + '</div>';
+      }
     } else if (kind === 'log') {
       h = '<h2>記録</h2><ol class="log">' + S.log.slice().reverse().map((t) => '<li>' + esc(t) + '</li>').join('') + '</ol><button class="btn ghost" data-a="sheet" data-i="cost">コスト表を見る</button>' + (canVib ? '<button class="btn ghost" data-a="vib">振動の強さ：' + VIBJA[vibLv] + '（押すと切りかえ）</button>' : '') + '<button class="btn ghost" data-a="vibTest">振動テスト</button>' + (S.phase !== 'over' ? '<button class="btn ghost" data-a="leave">' + (room.local ? 'ゲームをやめる' : '部屋を出る') + '</button>' : '');
     } else if (kind === 'cost') {
@@ -798,7 +817,7 @@
       const label = sel.k === 'h' ? '盗賊をここへ動かす' : sel.k === 'v' ? (free ? '開拓地をここに置く' : '開拓地を建てる <small>' + costHtml(E.COST.settlement) + '</small>') : sel.k === 'c' ? '都市にする <small>' + costHtml(E.COST.city) + '</small>' : S.phase === 'roadbuilding' ? '道をここに置く（無料）' : free ? '道をここに置く' : '道を置く <small>' + costHtml(E.COST.road) + '</small>';
       bar = '<div class="status mine cf"><span>' + label + '</span><button class="okb" data-a="ok">' + (sel.k === 'h' ? '動かす' : free ? '置く' : '建てる') + '</button><button class="nob" data-a="no">やめる</button></div>';
     } else bar = '<div class="status' + (mine ? ' mine' : '') + '">' + dice + '<span>' + statusText(m) + '</span></div>';
-    return '<div class="game">' + playersHtml(m) + (room.netMsg ? '<div class="netbar">' + esc(room.netMsg) + '</div>' : '') + '<div class="sea">' + boardSVG(S, tg, fx, reveal, robFx) + (room.local ? '' : '<span class="rcode">部屋 ' + esc(room.code) + '</span>') + rollPop() + '</div>'
+    return '<div class="game">' + playersHtml(m) + (room.netMsg ? '<div class="netbar">' + esc(room.netMsg) + '</div>' : '') + '<div class="sea">' + boardSVG(S, tg, fx, reveal, robFx) + '<button class="menub" data-a="sheet" data-i="menu" aria-label="メニュー">☰</button>' + (room.local ? '' : '<span class="rcode">部屋 ' + esc(room.code) + '</span>') + rollPop() + '</div>'
       + bar + handHtml(m) + actionsHtml(m) + sheetHtml(m) + '</div>';
   }
   function render() {
@@ -828,6 +847,15 @@
       case 'rmCpu': if (/^cpu[1-3]$/.test(i)) store.del('games/' + room.code + '/seats/' + i).catch(fail); break;
       case 'lv': cpuLevel = +i; ls.set('shima.lv', String(cpuLevel)); render(); break;
       case 'start': startGame(); break;
+      case 'menuAsk': ui.confirm = i; render(); break;
+      case 'menuNo': ui.confirm = null; render(); break;
+      case 'menuDo': {
+        const k = ui.confirm; ui.confirm = null; ui.sheet = null;
+        if (k === 'restart') { if (room.local) { if (room.cpu) startCpu(S.players.length); else startLocal(S.players.length); } else if (room.host === store.uid) startGame(); }
+        else if (k === 'lobby') { if (!room.local && room.host === store.uid) store.del('games/' + room.code + '/live/state').catch(fail); }
+        else if (k === 'leave') { leaveRoom(); ls.set('shima.room', ''); screen = 'home'; ui = blankUi(); render(); }
+        break;
+      }
       case 'leave': leaveRoom(); ls.set('shima.room', ''); screen = 'home'; ui = blankUi(); render(); break;
       case 'view': if (room && room.local && !room.cpu) { ui.view = +i; ui.mode = null; ui.sheet = null; ui.sel = null; render(); } else if (S) { ui.pv = +i; ui.sheet = 'player'; render(); } break;
       case 'pick': ui.sel = { k: el.dataset.k, i: +i }; buzz(6); render(); break;
@@ -838,7 +866,7 @@
       case 'buyDev': { const w = whyNot('dev', m); if (w) { toast(w); break; } } if (act({ t: 'buyDev' })) { const d = S.players[m].devNew; toast(E.DEV_JA[d[d.length - 1]] + ' を引いた'); } break;
       case 'mode': { const w = whyNot(i, m); if (w) { toast(w); break; } ui.mode = ui.mode === i ? null : i; ui.sel = null; render(); break; }
       case 'sheet': ui.sheet = i; if (i === 'trade') { ui.give = E.zero(); ui.want = E.zero(); ui.bankGive = null; ui.bankPick = []; } render(); break;
-      case 'close': ui.sheet = null; render(); break;
+      case 'close': ui.sheet = null; ui.confirm = null; render(); break;
       case 'tab': ui.tab = i; render(); break;
       case 'st': { const k = el.dataset.k, r = el.dataset.r; ui[k][r] = Math.max(0, ui[k][r] + (+el.dataset.d)); render(); break; }
       case 'discard': act({ t: 'discard', res: clone(ui.disc) }); break;
