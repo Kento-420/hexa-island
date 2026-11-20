@@ -75,7 +75,7 @@
       hexes, robber: hexes.findIndex((h) => h.res === 'desert'),
       ports: G.portSlots.map((e, i) => ({ e, type: types[i] })),
       bld: G.verts.map(() => null), roads: G.edges.map(() => null),
-      players: players.map((p) => ({ uid: p.uid, name: p.name, res: zero(), dev: [], devNew: [], knights: 0, roadsLeft: 15, settlementsLeft: 5, citiesLeft: 4 })),
+      players: players.map((p) => ({ uid: p.uid, name: p.name, cpu: p.cpu || 0, res: zero(), dev: [], devNew: [], knights: 0, roadsLeft: 15, settlementsLeft: 5, citiesLeft: 4 })),
       devDeck: shuffle(deck, rnd), bank: { wood: 19, brick: 19, sheep: 19, wheat: 19, ore: 19 },
       phase: 'setup', turn: 0, setup: { order, i: 0, need: 's', v: null },
       dice: null, devPlayed: false, discardNeed: {}, victims: null, resume: 'main', freeRoads: 0,

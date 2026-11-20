@@ -219,7 +219,7 @@
     if (net === 'peer') {
       const r0 = room, ps = store; r0.pstore = ps;
       ps.onStatus = (k, msg) => { if (room !== r0) return; r0.netMsg = k === 'ok' ? '' : msg; render(); };
-      ps.onReconnect = () => { if (room !== r0) return; ui.sentDiscard = false; ui.sentTrade = 0; if (S && me >= 0 && me === S.turn) pushState(); render(); };
+      ps.onReconnect = () => { if (room !== r0) return; ui.sentDiscard = false; ui.sentTrade = 0; if (iDrive()) pushState(); render(); };
     }
     const base = 'games/' + code;
     const mine = await store.get(base + '/seats/' + sid());
@@ -243,7 +243,8 @@
   function startGame() {
     const seats = room.seats.slice(0, 4);
     if (seats.length < 2) { toast('2人以上そろってから始めてください'); return; }
-    const order = seats.map((s) => ({ uid: s.uid, name: s.name }));
+    const order = seats.map((s) => ({ uid: s.uid, name: s.name, cpu: s.cpu ? (s.level || 2) : 0 }));
+    cpuSent = {};
     for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = order[i]; order[i] = order[j]; order[j] = t; }
     const n = E.newGame(order); n.rev = (S ? S.rev : 0) + 1;
     S = n; me = S.players.findIndex((p) => p.uid === store.uid); screen = 'game'; ui = blankUi();
@@ -268,12 +269,19 @@
   }
   // CPUの手番・捨て札・交渉の返事を、少し間をあけて1手ずつ進める
   function cpuPending() {
-    if (!S || !room || !room.cpu || S.phase === 'over') return null;
-    const cs = S.players.map((_, i) => i).filter((i) => i !== room.human);
-    if (S.phase === 'discard') { const s = cs.find((i) => S.discardNeed[i]); return s === undefined ? null : { seat: s, kind: 'discard' }; }
-    if (S.trade && S.turn === room.human) { const s = cs.find((i) => S.trade.resp[i] === undefined); return s === undefined ? null : { seat: s, kind: 'resp' }; }
-    return S.turn !== room.human ? { seat: S.turn, kind: 'turn' } : null;
+    if (!S || !room || S.phase === 'over') return null;
+    let cs = [];
+    if (room.local) { if (room.cpu) cs = S.players.map((_, i) => i).filter((i) => i !== room.human); }
+    else if (store && room.host === store.uid) cs = S.players.map((p, i) => (p.cpu ? i : -1)).filter((i) => i >= 0);
+    if (!cs.length) return null;
+    const fresh = (i, kind) => !cpuSent[cpuKey(i, kind)];
+    if (S.phase === 'discard') { const s = cs.find((i) => S.discardNeed[i] && fresh(i, 'discard')); return s === undefined ? null : { seat: s, kind: 'discard' }; }
+    if (S.trade && cs.indexOf(S.turn) < 0) { const s = cs.find((i) => S.trade.resp[i] === undefined && fresh(i, 'resp')); return s === undefined ? null : { seat: s, kind: 'resp' }; }
+    return cs.indexOf(S.turn) >= 0 ? { seat: S.turn, kind: 'turn' } : null;
   }
+  let cpuSent = {};
+  const cpuKey = (seat, kind) => S.gameId + ':' + S.rev + ':' + seat + ':' + kind;
+  const cpuLv = (seat) => (room.local ? room.level : S.players[seat].cpu) || 2;
   function scheduleCpu() {
     if (cpuTimer) return; const pd = cpuPending(); if (!pd) return;
     const delay = pd.kind !== 'turn' ? 450 : S.phase === 'roll' ? 900 : (fx && Date.now() - fx.t < 1500 ? 2100 : 700);
@@ -283,17 +291,25 @@
     cpuTimer = null; const pd = cpuPending(); if (!pd) return;
     let a = null;
     try {
-      if (pd.kind === 'resp') { const ans = window.ShimaAI.respond(S, pd.seat, room.level); a = ans && typeof ans === 'object' ? { t: 'counterTrade', id: S.trade.id, give: ans.give, want: ans.want } : { t: 'respondTrade', id: S.trade.id, ok: !!ans }; }
-      else a = window.ShimaAI.decide(S, pd.seat, room.level);
+      if (pd.kind === 'resp') { const ans = window.ShimaAI.respond(S, pd.seat, cpuLv(pd.seat)); a = ans && typeof ans === 'object' ? { t: 'counterTrade', id: S.trade.id, give: ans.give, want: ans.want } : { t: 'respondTrade', id: S.trade.id, ok: !!ans }; }
+      else a = window.ShimaAI.decide(S, pd.seat, cpuLv(pd.seat));
     } catch (e) { a = null; }
+    if (!room.local && !iDrive()) { // ほかの人の番：親から「操作のお願い」として送る
+      if (!a) return;
+      cpuSent[cpuKey(pd.seat, pd.kind)] = 1;
+      store.set('games/' + room.code + '/inputs/s' + pd.seat, { n: Date.now(), g: S.gameId, a: JSON.stringify(a) }).catch(fail);
+      scheduleCpu(); return;
+    }
     let n = clone(S), r = a ? E.apply(n, pd.seat, a) : { err: 1 };
     if (r.err) { // 念のための保険：止まらないように進める
       const fb = pd.kind === 'resp' ? { t: 'respondTrade', id: S.trade.id, ok: false } : S.phase === 'roll' ? { t: 'roll' } : S.phase === 'main' ? { t: 'endTurn' } : null;
       if (!fb) return; n = clone(S); if (E.apply(n, pd.seat, fb).err) return;
     }
-    S = n; afterChange();
+    S = n; afterChange(); pushState();
   }
 
+  // ルールを進める端末：手番の人の端末。手番がCPUのときは親の端末
+  const iDrive = () => !!(S && room && !room.local && store && S.phase !== 'over' && ((me >= 0 && me === S.turn) || (S.players[S.turn].cpu && room.host === store.uid)));
   let writing = false, dirty = false;
   async function pushState() {
     if (!room || room.local) return;
@@ -309,11 +325,11 @@
   }
   // 手番の人の端末が、ほかの人の操作（捨て札・交渉の返事）を取りこむ
   function processInputs() {
-    if (!S || !room || room.local || me < 0 || me !== S.turn || S.phase === 'over') return;
+    if (!iDrive()) return;
     let changed = false;
     room.inputs.forEach((d) => {
       const seat = parseInt(String(d.id).slice(1), 10);
-      if (!(seat >= 0) || seat === me || d.g !== S.gameId || !(d.n > (S.seen[seat] || 0))) return;
+      if (!(seat >= 0) || seat === me || seat >= S.players.length || d.g !== S.gameId || !(d.n > (S.seen[seat] || 0))) return;
       let a; try { a = JSON.parse(d.a); } catch (e) { return; }
       const n = clone(S), res = E.apply(n, seat, a);
       if (res.err) { S.seen[seat] = d.n; S.rev++; } else { n.seen[seat] = d.n; S = n; }
@@ -326,7 +342,7 @@
     if (!S || seat < 0) return false;
     const n = clone(S), r = E.apply(n, seat, a);
     if (r.err) { toast(r.err); return false; }
-    if (room.local || seat === S.turn) { S = n; afterChange(); pushState(); }
+    if (room.local || iDrive()) { S = n; afterChange(); pushState(); }
     else {
       store.set('games/' + room.code + '/inputs/s' + seat, { n: Date.now(), g: S.gameId, a: JSON.stringify(a) }).catch(fail);
       if (a.t === 'discard') ui.sentDiscard = true;
@@ -464,15 +480,18 @@
     o += '<div class="sep">1台をまわして遊ぶ</div><div class="row3"><button class="btn" data-a="local" data-i="2">2人</button><button class="btn" data-a="local" data-i="3">3人</button><button class="btn" data-a="local" data-i="4">4人</button></div>';
     return o + '</div></div>';
   }
+  const LVJA = { 1: 'よわい', 2: 'ふつう', 3: 'つよい' };
+  const lvSeg = () => '<div class="seg" role="group" aria-label="CPUの強さ">' + [1, 2, 3].map((x) => '<button class="' + (cpuLevel === x ? 'on' : '') + '" data-a="lv" data-i="' + x + '" aria-pressed="' + (cpuLevel === x) + '">' + LVJA[x] + '</button>').join('') + '</div>';
   function lobbyHtml() {
     const host = room.host === store.uid, n = room.seats.length;
     let o = '<div class="home"><div class="card"><p class="eyebrow">部屋コード</p><div class="bigcode">' + esc(room.code) + '</div>';
     o += '<p class="lead">友達にこのコードを伝えて、同じページから入ってもらってください。</p><ul class="seats">';
-    room.seats.forEach((s, i) => { o += '<li><i class="dot" style="background:' + (i < 4 ? '#3fb4a5' : '#9aa') + '"></i>' + esc(s.name) + (s.uid === room.host ? '<span class="pill">ホスト</span>' : '') + (s.uid === store.uid ? '<span class="pill me">あなた</span>' : '') + (i >= 4 ? '<span class="pill">観戦</span>' : '') + '</li>'; });
+    room.seats.forEach((s, i) => { o += '<li><i class="dot" style="background:' + (i < 4 ? '#3fb4a5' : '#9aa') + '"></i>' + esc(s.name) + (s.uid === room.host ? '<span class="pill">ホスト</span>' : '') + (s.uid === store.uid ? '<span class="pill me">あなた</span>' : '') + (s.cpu ? '<span class="pill">' + LVJA[s.level || 2] + '</span>' : '') + (i >= 4 ? '<span class="pill">観戦</span>' : '') + (s.cpu && host ? '<button class="rm" data-a="rmCpu" data-i="' + esc(s.id) + '" aria-label="' + esc(s.name) + 'を外す">×</button>' : '') + '</li>'; });
     if (!n) o += '<li class="muted">' + (room.slow ? 'つながりにくいようです。このまま待ってください…' : '読みこみ中…') + '</li>';
     o += '</ul>';
     if (room.netMsg) o += '<p class="note warn">' + esc(room.netMsg) + '</p>';
     if (host && net === 'peer') o += '<p class="note">この端末が親です。このページを閉じると部屋が止まります。</p>';
+    if (host) o += '<div class="sep">CPUを足す</div>' + lvSeg() + '<button class="btn" data-a="addCpu"' + (n >= 4 ? ' disabled' : '') + '>' + (n >= 4 ? '席がいっぱいです' : 'CPUを1人足す') + '</button>';
     if (host) o += '<button class="btn pri" data-a="start"' + (n < 2 ? ' disabled' : '') + '>この' + Math.min(n, 4) + '人で始める</button><p class="note">3〜4人がおすすめ。席順は始めるときにくじで決まります。</p>';
     else o += '<p class="note">ホストが始めるのを待っています…</p>';
     return o + '<button class="btn ghost" data-a="leave">部屋を出る</button></div></div>';
@@ -649,6 +668,8 @@
       case 'rejoin': { let d = null; if (net === 'peer') { try { d = JSON.parse(ls.get('shima.hostdump') || 'null'); } catch (e) { d = null; } } if (d && d.code === i && !needName()) rehost(i, d.docs); else joinRoom(i); break; }
       case 'local': startLocal(+i); break;
       case 'cpu': startCpu(+i); break;
+      case 'addCpu': { const used = room.seats.map((s) => s.id); const k = [1, 2, 3].find((x) => used.indexOf('cpu' + x) < 0); if (k && room.seats.length < 4) store.set('games/' + room.code + '/seats/cpu' + k, { uid: 'cpu:' + k, name: 'CPU' + k, cpu: true, level: cpuLevel, t: Date.now() }).catch(fail); break; }
+      case 'rmCpu': if (/^cpu[1-3]$/.test(i)) store.del('games/' + room.code + '/seats/' + i).catch(fail); break;
       case 'lv': cpuLevel = +i; ls.set('shima.lv', String(cpuLevel)); render(); break;
       case 'start': startGame(); break;
       case 'leave': leaveRoom(); ls.set('shima.room', ''); screen = 'home'; ui = blankUi(); render(); break;
