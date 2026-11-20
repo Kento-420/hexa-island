@@ -124,11 +124,36 @@
     if (tot > 7 && top) { const t = tradeFor(S, seat, COST[top], false); if (t) return t; }
     return { t: 'endTurn' };
   }
+  // 「おまかせ」の提案に条件を返す
+  function respondOpen(S, seat, lv) {
+    const t = S.trade, p = S.players[seat], theirs = S.players[S.turn].res;
+    if (lv > 1 && E.publicVP(S, S.turn) >= (lv === 3 ? 7 : 8)) return false;
+    const gl = goals(S, seat), d = (h) => (gl.length ? Math.min.apply(null, gl.map((g) => miss(h, COST[g]))) : 0), before = d(p.res);
+    const mk = (give, want) => (E.total(give) && E.total(want) && E.canAfford(p, give) ? { give, want } : false);
+    if (t.open === 'give') { // 相手：「○○が欲しい。何を出せばいい？」
+      const n = E.total(t.want), cands = RES.filter((r) => theirs[r] > 0 && !t.want[r]);
+      if (!cands.length) return false;
+      const score = (r) => { const h = Object.assign({}, p.res); RES.forEach((x) => { h[x] -= t.want[x]; }); h[r] += Math.min(n, theirs[r]); return (before - d(h)) * 10 - p.res[r]; };
+      const r = lv === 1 ? cands[Math.floor(Math.random() * cands.length)] : best(cands, score);
+      if (lv > 1 && score(r) <= -10) return false; // 自分の建設が遠のくなら断る
+      const want = E.zero(); want[r] = Math.min(n + (lv === 3 && E.publicVP(S, S.turn) >= 5 ? 1 : 0), theirs[r]);
+      return mk(Object.assign(E.zero(), t.want), want);
+    }
+    // 相手：「○○を出す。何をくれる？」
+    const n = E.total(t.give), h3 = {}; RES.forEach((r) => { h3[r] = p.res[r] + t.give[r]; });
+    const top = gl.filter((g) => g !== 'dev')[0] || gl[0], cost = top ? COST[top] : {};
+    const spare = (r) => p.res[r] - (cost[r] || 0);
+    const cands = RES.filter((r) => !t.give[r] && (lv === 1 ? p.res[r] > 0 : spare(r) >= 1));
+    if (!cands.length || (lv > 1 && d(h3) >= before)) return false;
+    const r = best(cands, (x) => spare(x)), give = E.zero(); give[r] = Math.max(1, Math.min(n, lv === 1 ? p.res[r] : spare(r)));
+    return mk(give, Object.assign(E.zero(), t.give));
+  }
   // 相手からの交渉に答える
   function respond(S, seat, lv) {
     lv = lv || 3;
     const t = S.trade, p = S.players[seat];
     if (!t || !E.canAfford(p, t.want)) return false;
+    if (t.open) return respondOpen(S, seat, lv);
     if (lv === 1) return E.total(t.give) >= E.total(t.want);
     if (E.publicVP(S, S.turn) >= (lv === 3 ? 7 : 8)) return false;
     const gl = goals(S, seat); if (!gl.length) return false;

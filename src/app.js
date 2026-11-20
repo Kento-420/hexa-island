@@ -156,9 +156,9 @@
   let room = null;   // {code, local, host, seats, inputs, unsub, slow}
   let S = null, me = -1;
   let busy = false;
-  const blankUi = () => ({ sel: null, counter: false, mode: null, sheet: null, tab: 'bank', give: E.zero(), want: E.zero(), disc: E.zero(), bankGive: null, bankGet: null, pick: [], view: 0, sentDiscard: false, sentTrade: 0 });
+  const blankUi = () => ({ sel: null, counter: false, mode: null, sheet: null, tab: 'bank', give: E.zero(), want: E.zero(), disc: E.zero(), bankGive: null, bankPick: [], pick: [], view: 0, sentDiscard: false, sentTrade: 0 });
   let ui = blankUi();
-  let lastTurnKey = '', lastStealRev = 0;
+  let lastTurnKey = '', lastStealRev = 0, lastMonoKey = '';
   // 開始時にタイルを伏せておき、外側から順にめくる
   let reveal = null, revealTimer = null, seenGame = '';
   const REVEAL_GAP = 90, REVEAL_ORDER = (function () { const idx = G.hexes.map((_, i) => i).sort((a, b) => { const A = G.hexes[a], B = G.hexes[b], da = Math.round(Math.hypot(A.x, A.y)), db = Math.round(Math.hypot(B.x, B.y)); return db - da || Math.atan2(A.y, A.x) - Math.atan2(B.y, B.x); }); const o = []; idx.forEach((h, k) => { o[h] = k; }); return o; })();
@@ -188,7 +188,18 @@
   const sid = () => String(store.uid).replace(/[^A-Za-z0-9_~:@+-]/g, '_');
 
   let toastTimer = null;
-  function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove("show"), Math.max(2600, t.length * 110)); }
+  function toast(t, ms) { const el = $('#toast'); el.textContent = t; el.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove("show"), Math.max(ms || 2600, t.length * 110)); }
+  // 札が動く様子：画面上のある場所から別の場所へ、札を1枚飛ばす
+  function fly(fromSel, toSel, html) {
+    const a = document.querySelector(fromSel), b = document.querySelector(toSel);
+    if (!a || !b || !document.body.animate || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+    const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+    const x0 = ra.left + ra.width / 2, y0 = ra.top + ra.height / 2, dx = rb.left + rb.width / 2 - x0, dy = rb.top + rb.height / 2 - y0;
+    const el = document.createElement('div'); el.className = 'flyc'; el.innerHTML = html; el.style.left = x0 + 'px'; el.style.top = y0 + 'px'; document.body.appendChild(el);
+    const c = 'translate(-50%,-50%) ', end = 'translate(calc(-50% + ' + dx + 'px),calc(-50% + ' + dy + 'px)) ';
+    const an = el.animate([{ transform: c + 'scale(.5)', opacity: 0 }, { transform: c + 'scale(1.6)', opacity: 1, offset: 0.14 }, { transform: c + 'scale(1.6)', opacity: 1, offset: 0.42 }, { transform: end + 'scale(1)', opacity: 1, offset: 0.86 }, { transform: end + 'scale(.8)', opacity: 0 }], { duration: 2100, easing: 'ease-in-out' });
+    an.onfinish = () => el.remove(); setTimeout(() => el.remove(), 2600);
+  }
 
   // ---------- 部屋 ----------
   const makeCode = () => { let s = ''; for (let i = 0; i < 4; i++) s += ALPHA[Math.floor(Math.random() * ALPHA.length)]; return s; };
@@ -388,7 +399,20 @@
     if ((!room.local || room.cpu) && m === S.turn && key !== lastTurnKey && (S.phase === 'roll' || S.phase === 'setup')) { toast('あなたの番です'); buzz([30, 60, 30]); }
     lastTurnKey = key;
     const st = S.lastSteal;
-    if (st && st.rev > lastStealRev) { lastStealRev = st.rev; if (!room.local || room.cpu) { if (st.by === m) toast(ICON[st.res] + JA[st.res] + ' をうばった'); else if (st.from === m) { toast(ICON[st.res] + JA[st.res] + ' をうばわれた'); buzz(90); } } }
+    const flies = [], chip = (i) => '.pl[data-i="' + i + '"]', cell = (r) => '.rc[data-r="' + r + '"]', nm = (i) => S.players[i].name;
+    const solo = !room.local || room.cpu; // 自分の席が決まっている（1台まわしでは手札の中身を出さない）
+    if (st && st.rev > lastStealRev) {
+      lastStealRev = st.rev;
+      if (solo && st.from === m) { toast(ICON[st.res] + JA[st.res] + ' を ' + nm(st.by) + ' にうばわれた', 4200); buzz([60, 50, 90]); flies.push([cell(st.res), chip(st.by), ICON[st.res]]); }
+      else if (solo && st.by === m) { toast(nm(st.from) + ' から ' + ICON[st.res] + JA[st.res] + ' をうばった', 3600); flies.push([chip(st.from), cell(st.res), ICON[st.res]]); }
+      else flies.push([chip(st.from), chip(st.by), '?']);
+    }
+    const mo = S.lastMono, mk = S.gameId + ':' + (mo ? mo.n : 0);
+    if (mo && mk !== lastMonoKey && lastMonoKey !== '') {
+      if (solo && mo.from[m]) { toast('独占：' + ICON[mo.res] + JA[mo.res] + ' ' + mo.from[m] + '枚を ' + nm(mo.by) + ' にとられた', 4200); buzz([60, 50, 90]); flies.push([cell(mo.res), chip(mo.by), ICON[mo.res] + mo.from[m]]); }
+      else Object.keys(mo.from).forEach((k) => { if (+k !== m) flies.push([chip(k), solo && mo.by === m ? cell(mo.res) : chip(mo.by), ICON[mo.res] + mo.from[k]]); });
+    }
+    lastMonoKey = mk;
     // 新しいゲームの始まり：タイルを伏せた状態から順にめくる
     if (S.gameId !== seenGame) {
       seenGame = S.gameId; lastTradeId = 0; lastCounterN = 0;
@@ -410,17 +434,18 @@
     if (lg && gk !== lastGainKey && lastGainKey !== '') { if (lg.roll === 7) buzz([60, 40, 60]); else if (lg.roll) buzz(m >= 0 && lg.g[m] && Object.keys(lg.g[m]).length ? [20, 40, 45] : 15); }
     if (lg && gk !== lastGainKey) { fx = { t: Date.now(), roll: lg.roll, hexes: lg.hexes, g: lg.g }; clearTimeout(fxTimer); fxTimer = setTimeout(() => { fx = null; if (screen === 'game' && S) render(); }, 3300); }
     lastGainKey = gk;
-    // 自分の手札が増えたところを光らせる（交換や強奪もふくむ）
+    // 自分の手札が増えた・減ったところを光らせる（交換や強奪もふくむ）
     if (m >= 0) {
       const h = S.players[m].res, hk = S.gameId + ':' + m;
       if (prevHand && prevHand.k === hk) {
         const d = {}; let any = false;
-        RES.forEach((r) => { if (h[r] > prevHand.h[r]) { d[r] = h[r] - prevHand.h[r]; any = true; } });
-        if (any) { handFx = { t: Date.now(), d }; clearTimeout(handTimer); handTimer = setTimeout(() => { handFx = null; if (screen === 'game' && S) render(); }, 1800); }
+        RES.forEach((r) => { if (h[r] !== prevHand.h[r]) { d[r] = h[r] - prevHand.h[r]; any = true; } });
+        if (any) { handFx = { t: Date.now(), d }; clearTimeout(handTimer); handTimer = setTimeout(() => { handFx = null; if (screen === 'game' && S) render(); }, 2600); }
       }
       prevHand = { k: hk, h: Object.assign({}, h) };
     }
     render(); scheduleCpu();
+    flies.forEach((x) => fly(x[0], x[1], x[2]));
   }
 
   // ---------- 盤面 ----------
@@ -528,6 +553,7 @@
 
   // ---------- 画面 ----------
   const bundle = (b) => RES.filter((r) => b[r] > 0).map((r) => ICON[r] + '<b>' + b[r] + '</b>').join(' ') || 'なし';
+  const side = (b) => (E.total(b) ? bundle(b) : '<span class="omk">おまかせ</span>');
   const costHtml = (c) => RES.filter((r) => c[r]).map((r) => ICON[r] + (c[r] > 1 ? c[r] : '')).join('');
 
   function homeHtml() {
@@ -600,7 +626,7 @@
   function handHtml(m) {
     if (m < 0) return '<div class="hand"><span class="muted">観戦中</span></div>';
     const p = S.players[m];
-    return '<div class="hand">' + RES.map((r) => { const up = handFx && handFx.d[r]; return '<span class="rc' + (p.res[r] ? '' : ' z') + (up ? ' up' : '') + '"' + (up ? ' ' + dl(handFx.t) : '') + '>' + ICON[r] + '<small>' + JA[r] + '</small><b>' + p.res[r] + '</b>' + (up ? '<i class="plus" ' + dl(handFx.t) + '>+' + up + '</i>' : '') + '</span>'; }).join('') + '</div>';
+    return '<div class="hand">' + RES.map((r) => { const up = handFx ? handFx.d[r] || 0 : 0; return '<span class="rc' + (p.res[r] ? '' : ' z') + (up > 0 ? ' up' : up < 0 ? ' down' : '') + '" data-r="' + r + '"' + (up ? ' ' + dl(handFx.t) : '') + '>' + ICON[r] + '<small>' + JA[r] + '</small><b>' + p.res[r] + '</b>' + (up > 0 ? '<i class="plus" ' + dl(handFx.t) + '>+' + up + '</i>' : up < 0 ? '<i class="plus minus" ' + dl(handFx.t) + '>−' + (-up) + '</i>' : '') + '</span>'; }).join('') + '</div>';
   }
   function actionsHtml(m) {
     if (m < 0 || S.phase === 'over') return '<div class="acts"><button class="ab" data-a="sheet" data-i="log">記録</button><button class="ab" data-a="sheet" data-i="cost">コスト表</button><button class="ab" data-a="leave">' + (room.local ? 'やめる' : '部屋を出る') + '</button></div>';
@@ -654,12 +680,13 @@
         h = '<h2>条件を変えて返す</h2>' + miniHand(p) + '<p class="eyebrow">自分が出す</p>' + stepper('give', (r) => (ui.want[r] ? 0 : p.res[r]), p.res) + '<p class="eyebrow">欲しい</p>' + stepper('want', (r) => (ui.give[r] ? 0 : 9));
         h += '<button class="btn pri" data-a="counter"' + (E.total(ui.give) && E.total(ui.want) ? '' : ' disabled') + '>この条件で返す</button><button class="btn ghost" data-a="counterBack">もどる</button>';
       } else {
-      h = '<h2>' + esc(S.players[S.turn].name) + ' からの提案</h2>' + miniHand(p) + '<div class="deal"><div><small>もらえる</small>' + bundle(t.give) + '</div><div><small>わたす</small>' + bundle(t.want) + '</div></div>';
+      h = '<h2>' + esc(S.players[S.turn].name) + (t.open ? ' が条件を聞いています' : ' からの提案') + '</h2>' + miniHand(p) + '<div class="deal"><div><small>もらえる</small>' + side(t.give) + '</div><div><small>わたす</small>' + side(t.want) + '</div></div>';
+      if (t.open) h += '<div class="row2"><button class="btn pri" data-a="counterOpen">条件を出す</button><button class="btn" data-a="resp" data-i="0">ことわる</button></div>'; else
       h += '<div class="row2"><button class="btn pri" data-a="resp" data-i="1"' + (can ? '' : ' disabled') + '>' + (can ? '受ける' : '札が足りない') + '</button><button class="btn" data-a="resp" data-i="0">ことわる</button></div><button class="btn ghost" data-a="counterOpen">条件を変えて返す</button>';
       }
     } else if (kind === 'tradeWait') {
       const t = S.trade;
-      h = '<h2>提案中</h2>' + miniHand(p) + '<div class="deal"><div><small>出す</small>' + bundle(t.give) + '</div><div><small>欲しい</small>' + bundle(t.want) + '</div></div><div class="col">';
+      h = '<h2>' + (t.open ? '条件を聞いています' : '提案中') + '</h2>' + miniHand(p) + '<div class="deal"><div><small>出す</small>' + side(t.give) + '</div><div><small>欲しい</small>' + side(t.want) + '</div></div><div class="col">';
       S.players.forEach((q, s) => {
         if (s === m) return;
         const r = t.resp[s], nm = '<i class="dot" style="background:' + PCOL[s] + '"></i>' + esc(q.name);
@@ -676,11 +703,16 @@
       h = '<div class="tabs"><button class="' + (ui.tab === 'bank' ? 'on' : '') + '" data-a="tab" data-i="bank">銀行・港</button><button class="' + (ui.tab === 'player' ? 'on' : '') + '" data-a="tab" data-i="player">みんなと交渉</button></div>' + miniHand(p);
       if (ui.tab === 'bank') {
         h += '<p class="eyebrow">出す</p><div class="pick">' + RES.map((r) => { const rate = E.tradeRate(S, m, r); return '<button class="' + (ui.bankGive === r ? 'on' : '') + '" data-a="bg" data-i="' + r + '"' + (p.res[r] >= rate ? '' : ' disabled') + '>' + ICON[r] + '<small>持ち' + p.res[r] + '</small><small class="rt">' + rate + '枚で1</small></button>'; }).join('') + '</div>';
-        h += '<p class="eyebrow">もらう（1枚）</p><div class="pick">' + RES.map((r) => '<button class="' + (ui.bankGet === r ? 'on' : '') + '" data-a="bt" data-i="' + r + '"' + (S.bank[r] > 0 && r !== ui.bankGive ? '' : ' disabled') + '>' + ICON[r] + '<small>' + JA[r] + '</small></button>').join('') + '</div>';
-        h += '<button class="btn pri" data-a="bank"' + (ui.bankGive && ui.bankGet && ui.bankGive !== ui.bankGet ? '' : ' disabled') + '>交換する</button>';
+        { const g = ui.bankGive, rate = g ? E.tradeRate(S, m, g) : 0, max = g ? Math.floor(p.res[g] / rate) : 0, n = ui.bankPick.length, cnt = E.zero(); ui.bankPick.forEach((r) => { cnt[r]++; });
+          h += '<p class="eyebrow">もらう' + (g ? '（' + n + '/' + max + '枚まで。押した回数だけもらえる）' : '（先に出すものをえらぶ）') + '</p><div class="pick">' + RES.map((r) => '<button class="' + (cnt[r] ? 'on' : '') + '" data-a="bt" data-i="' + r + '"' + (g && r !== g && n < max && S.bank[r] - cnt[r] > 0 ? '' : ' disabled') + '>' + ICON[r] + '<small>' + (cnt[r] ? '×' + cnt[r] : JA[r]) + '</small></button>').join('') + '</div>';
+          if (n) h += '<div class="deal"><div><small>出す</small>' + ICON[g] + '<b>' + rate * n + '</b></div><div><small>もらう</small>' + bundle(cnt) + '</div></div>';
+          h += '<button class="btn pri" data-a="bank"' + (n ? '' : ' disabled') + '>交換する</button>' + (n ? '<button class="btn ghost" data-a="bkclr">えらび直す</button>' : ''); }
+
       } else {
         h += '<p class="eyebrow">出す</p>' + stepper('give', (r) => (ui.want[r] ? 0 : p.res[r]), p.res) + '<p class="eyebrow">欲しい</p>' + stepper('want', (r) => (ui.give[r] ? 0 : 9));
-        h += '<button class="btn pri" data-a="offer"' + (E.total(ui.give) && E.total(ui.want) ? '' : ' disabled') + '>全員に提案する</button>';
+        { const g = E.total(ui.give), w = E.total(ui.want), hot = room.local && !room.cpu;
+          h += '<button class="btn pri" data-a="offer"' + ((g && w) || (!hot && (g || w)) ? '' : ' disabled') + '>' + (g && w ? '全員に提案する' : w ? '「これが欲しい。何を出せばいい？」と聞く' : g ? '「これを出す。何をくれる？」と聞く' : '全員に提案する') + '</button>';
+          if (!hot) h += '<p class="note">片方だけ入れると、相手に条件を出してもらえます。</p>'; }
       }
     } else if (kind === 'dev') {
       const cnt = {}; p.dev.forEach((c) => { cnt[c] = (cnt[c] || 0) + 1; });
@@ -757,7 +789,7 @@
       case 'endTurn': act({ t: 'endTurn' }); break;
       case 'buyDev': { const w = whyNot('dev', m); if (w) { toast(w); break; } } if (act({ t: 'buyDev' })) { const d = S.players[m].devNew; toast(E.DEV_JA[d[d.length - 1]] + ' を引いた'); } break;
       case 'mode': { const w = whyNot(i, m); if (w) { toast(w); break; } ui.mode = ui.mode === i ? null : i; ui.sel = null; render(); break; }
-      case 'sheet': ui.sheet = i; if (i === 'trade') { ui.give = E.zero(); ui.want = E.zero(); ui.bankGive = null; ui.bankGet = null; } render(); break;
+      case 'sheet': ui.sheet = i; if (i === 'trade') { ui.give = E.zero(); ui.want = E.zero(); ui.bankGive = null; ui.bankPick = []; } render(); break;
       case 'close': ui.sheet = null; render(); break;
       case 'tab': ui.tab = i; render(); break;
       case 'st': { const k = el.dataset.k, r = el.dataset.r; ui[k][r] = Math.max(0, ui[k][r] + (+el.dataset.d)); render(); break; }
@@ -775,9 +807,10 @@
       case 'counter': act({ t: 'counterTrade', id: S.trade.id, give: clone(ui.give), want: clone(ui.want) }); break;
       case 'dealLocal': if (act({ t: 'respondTrade', id: S.trade.id, ok: true }, +i)) act({ t: 'confirmTrade', with: +i }, S.turn); break;
       case 'cancelTrade': act({ t: 'cancelTrade' }); break;
-      case 'bg': ui.bankGive = i; if (ui.bankGet === i) ui.bankGet = null; render(); break;
-      case 'bt': ui.bankGet = i; render(); break;
-      case 'bank': if (act({ t: 'bankTrade', give: ui.bankGive, get: ui.bankGet })) { ui.bankGet = null; if (S.players[m].res[ui.bankGive] < E.tradeRate(S, m, ui.bankGive)) ui.bankGive = null; render(); } break;
+      case 'bg': ui.bankGive = i; ui.bankPick = []; render(); break;
+      case 'bt': ui.bankPick.push(i); render(); break;
+      case 'bkclr': ui.bankPick = []; render(); break;
+      case 'bank': { const g = ui.bankGive, gets = ui.bankPick.slice(); ui.bankPick = []; if (act({ t: 'bankTrade', give: g, gets })) { if (S.players[m].res[g] < E.tradeRate(S, m, g)) ui.bankGive = null; } render(); break; }
       case 'offer': if (act({ t: 'offerTrade', give: clone(ui.give), want: clone(ui.want) })) { ui.sheet = null; render(); } break;
       case 'dev':
         if (i === 'plenty' || i === 'mono') { ui.sheet = i; ui.pick = []; render(); }

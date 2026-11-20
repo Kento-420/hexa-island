@@ -256,6 +256,7 @@
     if (a.t === 'respondTrade') {
       if (!S.trade || a.id !== S.trade.id) return E('その提案はもうありません');
       if (myTurn) return E('自分の提案です');
+      if (a.ok && S.trade.open) return E('この提案には条件を返してください');
       if (a.ok && !canAfford(p, S.trade.want)) return E('札が足りません');
       S.trade.resp[seat] = !!a.ok;
       return OK;
@@ -384,8 +385,9 @@
           log(S, name(S, seat) + ' が豊作で ' + RES_JA[a.a] + ' と ' + RES_JA[a.b] + ' を得た');
         } else if (c === 'mono') {
           if (RES.indexOf(a.res) < 0) return E('資源をえらんでください');
-          let n = 0;
-          S.players.forEach((q, s) => { if (s !== seat) { n += q.res[a.res]; p.res[a.res] += q.res[a.res]; q.res[a.res] = 0; } });
+          let n = 0; const from = {};
+          S.players.forEach((q, s) => { if (s !== seat) { if (q.res[a.res]) from[s] = q.res[a.res]; n += q.res[a.res]; p.res[a.res] += q.res[a.res]; q.res[a.res] = 0; } });
+          S.lastMono = { n: (S.lastMono ? S.lastMono.n : 0) + 1, by: seat, res: a.res, from };
           log(S, name(S, seat) + ' が独占で ' + RES_JA[a.res] + ' を' + n + '枚あつめた');
         } else if (c === 'knight') {
           p.knights++; log(S, name(S, seat) + ' が騎士を使った'); updateArmy(S);
@@ -397,23 +399,27 @@
         p.dev.splice(i, 1); S.devPlayed = true;
         return OK;
       }
-      case 'bankTrade': {
+      case 'bankTrade': { // gets に複数入れると、まとめて交換できる
         if (S.phase !== 'main') return E('交換はサイコロのあとです');
-        if (RES.indexOf(a.give) < 0 || RES.indexOf(a.get) < 0 || a.give === a.get) return E('資源をえらんでください');
-        const rate = tradeRate(S, seat, a.give);
-        if (p.res[a.give] < rate) return E(RES_JA[a.give] + ' が' + rate + '枚必要です');
-        if (S.bank[a.get] < 1) return E('銀行にありません');
-        p.res[a.give] -= rate; S.bank[a.give] += rate; p.res[a.get]++; S.bank[a.get]--;
-        log(S, name(S, seat) + ' が ' + RES_JA[a.give] + rate + ' → ' + RES_JA[a.get] + '1 に交換');
+        const gets = Array.isArray(a.gets) ? a.gets : [a.get];
+        if (RES.indexOf(a.give) < 0 || !gets.length || gets.length > 12 || gets.some((r) => RES.indexOf(r) < 0 || r === a.give)) return E('資源をえらんでください');
+        const rate = tradeRate(S, seat, a.give), cost = rate * gets.length;
+        if (p.res[a.give] < cost) return E(RES_JA[a.give] + ' が' + cost + '枚必要です');
+        const cnt = zero(); gets.forEach((r) => { cnt[r]++; });
+        if (RES.some((r) => cnt[r] > S.bank[r])) return E('銀行にありません');
+        p.res[a.give] -= cost; S.bank[a.give] += cost;
+        RES.forEach((r) => { p.res[r] += cnt[r]; S.bank[r] -= cnt[r]; });
+        log(S, name(S, seat) + ' が ' + RES_JA[a.give] + cost + ' → ' + RES.filter((r) => cnt[r]).map((r) => RES_JA[r] + cnt[r]).join(' ') + ' に交換');
         return OK;
       }
       case 'offerTrade': {
         if (S.phase !== 'main') return E('交渉はサイコロのあとです');
-        if (!validBundle(a.give) || !validBundle(a.want) || !total(a.give) || !total(a.want)) return E('出すものと欲しいものを両方えらんでください');
+        // 片方だけ指定した提案は「おまかせ」：相手に条件（逆提案）を出してもらう
+        if (!validBundle(a.give) || !validBundle(a.want) || (!total(a.give) && !total(a.want))) return E('出すものか欲しいものをえらんでください');
         if (RES.some((r) => (a.give[r] || 0) > 0 && (a.want[r] || 0) > 0)) return E('同じ資源は出すと欲しいの両方にできません');
         if (!canAfford(p, a.give)) return E('札が足りません');
         const g = zero(), w = zero(); RES.forEach((r) => { g[r] = a.give[r] || 0; w[r] = a.want[r] || 0; });
-        S.trade = { id: ++S.tradeSeq, give: g, want: w, resp: {}, counters: {} };
+        S.trade = { id: ++S.tradeSeq, give: g, want: w, resp: {}, counters: {}, open: !total(g) ? 'give' : !total(w) ? 'want' : null };
         return OK;
       }
       case 'confirmTrade': {
