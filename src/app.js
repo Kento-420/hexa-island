@@ -158,9 +158,17 @@
   const blankUi = () => ({ counter: false, mode: null, sheet: null, tab: 'bank', give: E.zero(), want: E.zero(), disc: E.zero(), bankGive: null, bankGet: null, pick: [], view: 0, sentDiscard: false, sentTrade: 0 });
   let ui = blankUi();
   let lastTurnKey = '', lastStealRev = 0;
+  // 開始時にタイルを伏せておき、外側から順にめくる
+  let reveal = null, revealTimer = null, seenGame = '';
+  const REVEAL_GAP = 90, REVEAL_ORDER = (function () { const idx = G.hexes.map((_, i) => i).sort((a, b) => { const A = G.hexes[a], B = G.hexes[b], da = Math.round(Math.hypot(A.x, A.y)), db = Math.round(Math.hypot(B.x, B.y)); return db - da || Math.atan2(A.y, A.x) - Math.atan2(B.y, B.x); }); const o = []; idx.forEach((h, k) => { o[h] = k; }); return o; })();
+  // 振動（対応している端末だけ。設定は端末に残る）
+  const canVib = typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
+  let vibOn = ls.get('shima.vib') !== '0';
+  const buzz = (p) => { if (!canVib || !vibOn) return; try { navigator.vibrate(p); } catch (e) { /* 対応していなければ何もしない */ } };
+  let lastTradeId = 0, lastCounterN = 0, lastOver = '';
   let fx = null, fxTimer = null, lastGainKey = '', handFx = null, handTimer = null, prevHand = null, cpuTimer = null;
   const dl = (t) => 'style="animation-delay:-' + Math.max(0, Date.now() - t) + 'ms"';
-  const demo = (function () { const d = E.newGame([{ uid: 'a', name: '' }, { uid: 'b', name: '' }, { uid: 'c', name: '' }]); while (d.phase === 'setup') { const s = d.turn; if (d.setup.need === 's') { const l = E.legalSettlements(d, s); E.apply(d, s, { t: 'placeSettlement', v: l[Math.floor(Math.random() * l.length)] }); } else { const l = E.legalRoads(d, s); E.apply(d, s, { t: 'placeRoad', e: l[Math.floor(Math.random() * l.length)] }); } } return d; })();
+  const demo = E.newGame([{ uid: 'a', name: '' }, { uid: 'b', name: '' }, { uid: 'c', name: '' }]); // タイトル画面用（伏せたまま見せる）
 
   const meSeat = () => (room && room.local ? (room.cpu ? room.human : ui.view) : me);
   const sid = () => String(store.uid).replace(/[^A-Za-z0-9_~:@+-]/g, '_');
@@ -232,7 +240,7 @@
     r.unsub.push(store.subDoc(base + '/live/state', (d) => { if (room !== r || !d) return; onState(d); }, onErr));
     r.unsub.push(store.subCol(base + '/inputs', (l) => { if (room !== r) return; r.inputs = l; setTimeout(processInputs, 0); }, onErr));
   }
-  function leaveRoom() { if (cpuTimer) { clearTimeout(cpuTimer); cpuTimer = null; } fx = null; handFx = null; prevHand = null; if (room && room.pstore) { try { room.pstore.close(); } catch (e) { /* 無視 */ } if (store === room.pstore) store = null; } if (room && room.unsub) room.unsub.forEach((u) => { try { u(); } catch (e) { /* 無視 */ } }); room = null; S = null; me = -1; }
+  function leaveRoom() { if (cpuTimer) { clearTimeout(cpuTimer); cpuTimer = null; } clearTimeout(revealTimer); reveal = null; fx = null; handFx = null; prevHand = null; if (room && room.pstore) { try { room.pstore.close(); } catch (e) { /* 無視 */ } if (store === room.pstore) store = null; } if (room && room.unsub) room.unsub.forEach((u) => { try { u(); } catch (e) { /* 無視 */ } }); room = null; S = null; me = -1; }
 
   function onState(d) {
     if (S && !(d.rev > S.rev)) return;
@@ -283,7 +291,7 @@
   const cpuKey = (seat, kind) => S.gameId + ':' + S.rev + ':' + seat + ':' + kind;
   const cpuLv = (seat) => (room.local ? room.level : S.players[seat].cpu) || 2;
   function scheduleCpu() {
-    if (cpuTimer) return; const pd = cpuPending(); if (!pd) return;
+    if (cpuTimer || reveal) return; const pd = cpuPending(); if (!pd) return;
     const delay = pd.kind !== 'turn' ? 450 : S.phase === 'roll' ? 900 : (fx && Date.now() - fx.t < 1500 ? 2100 : 700);
     cpuTimer = setTimeout(cpuStep, delay);
   }
@@ -342,7 +350,7 @@
     if (!S || seat < 0) return false;
     const n = clone(S), r = E.apply(n, seat, a);
     if (r.err) { toast(r.err); return false; }
-    if (room.local || iDrive()) { S = n; afterChange(); pushState(); }
+    if (room.local || iDrive()) { if (a.t === 'placeSettlement' || a.t === 'placeRoad' || a.t === 'buildCity' || a.t === 'moveRobber') buzz(12); S = n; afterChange(); pushState(); }
     else {
       store.set('games/' + room.code + '/inputs/s' + seat, { n: Date.now(), g: S.gameId, a: JSON.stringify(a) }).catch(fail);
       if (a.t === 'discard') ui.sentDiscard = true;
@@ -362,12 +370,29 @@
     if (['trade', 'plenty', 'mono'].indexOf(ui.sheet) >= 0 && (m !== S.turn || (S.phase !== 'main' && S.phase !== 'roll'))) ui.sheet = null;
     if (ui.sheet === 'trade' && S.phase !== 'main') ui.sheet = null;
     const key = S.gameId + ':' + S.turn + ':' + (S.phase === 'setup' ? S.setup.i : S.phase === 'roll' ? 'r' : '');
-    if ((!room.local || room.cpu) && m === S.turn && key !== lastTurnKey && (S.phase === 'roll' || S.phase === 'setup')) toast('あなたの番です');
+    if ((!room.local || room.cpu) && m === S.turn && key !== lastTurnKey && (S.phase === 'roll' || S.phase === 'setup')) { toast('あなたの番です'); buzz([30, 60, 30]); }
     lastTurnKey = key;
     const st = S.lastSteal;
-    if (st && st.rev > lastStealRev) { lastStealRev = st.rev; if (!room.local || room.cpu) { if (st.by === m) toast(ICON[st.res] + JA[st.res] + ' をうばった'); else if (st.from === m) toast(ICON[st.res] + JA[st.res] + ' をうばわれた'); } }
+    if (st && st.rev > lastStealRev) { lastStealRev = st.rev; if (!room.local || room.cpu) { if (st.by === m) toast(ICON[st.res] + JA[st.res] + ' をうばった'); else if (st.from === m) { toast(ICON[st.res] + JA[st.res] + ' をうばわれた'); buzz(90); } } }
+    // 新しいゲームの始まり：タイルを伏せた状態から順にめくる
+    if (S.gameId !== seenGame) {
+      seenGame = S.gameId; lastTradeId = 0; lastCounterN = 0;
+      if (S.phase === 'setup' && S.setup.i === 0 && S.setup.need === 's') {
+        reveal = { t: Date.now() }; clearTimeout(revealTimer);
+        revealTimer = setTimeout(() => { reveal = null; buzz(25); if (screen === 'game' && S) { render(); scheduleCpu(); } }, REVEAL_GAP * G.hexes.length + 700);
+      }
+    }
+    // 振動：交渉が届いた・逆提案が来た・決着
+    if (S.trade) {
+      if (S.trade.id !== lastTradeId) { lastTradeId = S.trade.id; lastCounterN = 0; if (m >= 0 && m !== S.turn && !room.local) buzz([25, 50, 25]); }
+      const cn = S.trade.counters ? Object.keys(S.trade.counters).length : 0;
+      if (cn > lastCounterN && m === S.turn) buzz(25);
+      lastCounterN = cn;
+    }
+    if (S.phase === 'over' && lastOver !== S.gameId) { lastOver = S.gameId; buzz([100, 60, 100, 60, 220]); }
     // 収入の演出（サイコロと初期配置）
     const lg = S.lastGain, gk = S.gameId + ':' + (lg ? lg.seq : 0);
+    if (lg && gk !== lastGainKey && lastGainKey !== '') { if (lg.roll === 7) buzz([60, 40, 60]); else if (lg.roll) buzz(m >= 0 && lg.g[m] && Object.keys(lg.g[m]).length ? [20, 40, 45] : 15); }
     if (lg && gk !== lastGainKey) { fx = { t: Date.now(), roll: lg.roll, hexes: lg.hexes, g: lg.g }; clearTimeout(fxTimer); fxTimer = setTimeout(() => { fx = null; if (screen === 'game' && S) render(); }, 3300); }
     lastGainKey = gk;
     // 自分の手札が増えたところを光らせる（交換や強奪もふくむ）
@@ -386,7 +411,7 @@
   // ---------- 盤面 ----------
   function targets() {
     const t = { v: [], e: [], h: [], city: false };
-    if (!S || S.phase === 'over') return t;
+    if (!S || S.phase === 'over' || reveal) return t;
     const m = meSeat(); if (m < 0 || m !== S.turn) return t;
     if (S.phase === 'setup') { if (S.setup.need === 's') t.v = E.legalSettlements(S, m); else t.e = E.legalRoads(S, m); }
     else if (S.phase === 'robber') t.h = S.hexes.map((_, i) => i).filter((i) => i !== S.robber);
@@ -399,7 +424,7 @@
     return t;
   }
   const f = (n) => n.toFixed(1);
-  function boardSVG(B, tg, gfx) {
+  function boardSVG(B, tg, gfx, cover) {
     let o = '<svg class="board" viewBox="-262 -236 524 472" role="img" aria-label="盤面">';
     B.ports.forEach((p) => {
       const ed = G.edges[p.e], m = G.mid(ed), hx = G.hexes[ed.hexes[0]];
@@ -420,6 +445,10 @@
         for (let k = 0; k < pips; k++) o += '<circle class="pip' + (hot ? ' hot' : '') + '" cx="' + f(g.x + (k - (pips - 1) / 2) * 4) + '" cy="' + f(g.y + 19.5) + '" r="1.3"/>';
       }
       if (B.robber === i) o += '<g class="robber" transform="translate(' + f(g.x + (h.res === 'desert' ? 0 : 22)) + ',' + f(g.y + (h.res === 'desert' ? 0 : -6)) + ')"><ellipse cy="7" rx="9" ry="8"/><circle cy="-6" r="6"/></g>';
+    });
+    if (cover) B.hexes.forEach((h, i) => {
+      const g = G.hexes[i], rel = g.v.map((v) => f(G.verts[v].x - g.x) + ',' + f(G.verts[v].y - g.y)).join(' ');
+      o += '<g transform="translate(' + f(g.x) + ',' + f(g.y) + ')"><g class="cov' + (cover.all ? ' still' : '') + '"' + (cover.all ? '' : ' style="animation-delay:' + Math.round(REVEAL_GAP * REVEAL_ORDER[i] - (Date.now() - cover.t)) + 'ms"') + '><polygon points="' + rel + '"/><text y="10">?</text></g></g>';
     });
     if (gfx && gfx.hexes.length) {
       const pts = (i) => G.hexes[i].v.map((v) => f(G.verts[v].x) + ',' + f(G.verts[v].y)).join(' ');
@@ -466,7 +495,7 @@
   function homeHtml() {
     const saved = ls.get('shima.room');
     const off = net !== 'on' && net !== 'peer';
-    let o = '<div class="home"><div class="hero">' + boardSVG(demo, null) + '</div><div class="card">';
+    let o = '<div class="home"><div class="hero">' + boardSVG(demo, null, null, { all: true }) + '</div><div class="card">';
     o += '<h1>HEXA ISLAND</h1><p class="lead">六角の島を切りひらく、3〜4人の資源あつめと陣取り。10点で勝ち。</p>';
     o += '<div class="sep">CPUと遊ぶ</div><div class="seg" role="group" aria-label="CPUの強さ">' + [[1, 'よわい'], [2, 'ふつう'], [3, 'つよい']].map((x) => '<button class="' + (cpuLevel === x[0] ? 'on' : '') + '" data-a="lv" data-i="' + x[0] + '" aria-pressed="' + (cpuLevel === x[0]) + '">' + x[1] + '</button>').join('') + '</div><div class="row2"><button class="btn pri" data-a="cpu" data-i="3">CPU 2人と</button><button class="btn pri" data-a="cpu" data-i="4">CPU 3人と</button></div><div class="sep">友達とオンライン</div>';
     o += '<label class="fld" for="name">あなたの名前<input id="name" maxlength="8" autocomplete="off" placeholder="8文字まで" value="' + esc(myName) + '"></label>';
@@ -498,6 +527,7 @@
   }
 
   function statusText(m) {
+    if (reveal) return '島があらわれます…';
     const tn = esc(S.players[S.turn].name), mine = m === S.turn;
     switch (S.phase) {
       case 'setup': return mine ? (S.setup.need === 's' ? '開拓地を置く場所をタップ（' + (S.setup.i < S.players.length ? '1' : '2') + 'つ目）' : '今の開拓地から道を1本のばす') : tn + ' が初期配置中';
@@ -599,12 +629,12 @@
         if (room.local && !room.cpu) h += '<button class="btn" data-a="dealLocal" data-i="' + s + '"' + (E.canAfford(q, t.want) ? '' : ' disabled') + '>' + nm + ' と成立' + (E.canAfford(q, t.want) ? '' : '（札不足）') + '</button>';
         else if (r === 'counter' && t.counters && t.counters[s]) {
           const c = t.counters[s], ok = E.canAfford(p, c.want);
-          h += '<div class="ctr"><div class="wait">' + nm + '<span>これならいいよ</span></div><div class="deal"><div><small>もらえる</small>' + bundle(c.give) + '</div><div><small>わたす</small>' + bundle(c.want) + '</div></div><button class="btn pri" data-a="acceptCounter" data-i="' + s + '"' + (ok ? '' : ' disabled') + '>' + (ok ? 'この条件で成立' : '札が足りない') + '</button></div>';
+          h += '<div class="ctr"><div class="wait">' + nm + '<span>これならいいよ</span></div><div class="deal"><div><small>もらえる</small>' + bundle(c.give) + '</div><div><small>わたす</small>' + bundle(c.want) + '</div></div><div class="row2"><button class="btn pri" data-a="acceptCounter" data-i="' + s + '"' + (ok ? '' : ' disabled') + '>' + (ok ? 'これで成立' : '札が足りない') + '</button><button class="btn" data-a="rejectCounter" data-i="' + s + '">これは断る</button></div></div>';
         }
         else if (r === true) h += '<button class="btn pri" data-a="confirm" data-i="' + s + '">' + nm + ' と成立させる</button>';
         else h += '<div class="wait">' + nm + '<span>' + (r === false ? 'ことわった' : '返事待ち…') + '</span></div>';
       });
-      h += '</div><button class="btn ghost" data-a="cancelTrade">取り下げる</button>';
+      h += '</div><button class="btn" data-a="reoffer">条件を変えて出し直す</button><button class="btn ghost" data-a="cancelTrade">取り下げる</button>';
     } else if (kind === 'trade') {
       h = '<div class="tabs"><button class="' + (ui.tab === 'bank' ? 'on' : '') + '" data-a="tab" data-i="bank">銀行・港</button><button class="' + (ui.tab === 'player' ? 'on' : '') + '" data-a="tab" data-i="player">みんなと交渉</button></div>' + miniHand(p);
       if (ui.tab === 'bank') {
@@ -629,7 +659,7 @@
       h = '<h2>' + (two ? '豊作：2枚えらぶ' : '独占：1種類えらぶ') + '</h2>' + miniHand(p) + '<div class="pick">' + RES.map((r) => '<button data-a="pk" data-i="' + r + '"' + (two && S.bank[r] < 1 ? ' disabled' : '') + '>' + ICON[r] + '<small>' + JA[r] + (two ? ' ' + ui.pick.filter((x) => x === r).length : '') + '</small></button>').join('') + '</div>';
       if (two) h += '<button class="btn pri" data-a="pkgo"' + (ui.pick.length === 2 ? '' : ' disabled') + '>もらう（' + ui.pick.length + '/2）</button><button class="btn ghost" data-a="pkclr">えらび直す</button>';
     } else if (kind === 'log') {
-      h = '<h2>記録</h2><ol class="log">' + S.log.slice().reverse().map((t) => '<li>' + esc(t) + '</li>').join('') + '</ol><button class="btn ghost" data-a="sheet" data-i="cost">コスト表を見る</button>' + (S.phase !== 'over' ? '<button class="btn ghost" data-a="leave">' + (room.local ? 'ゲームをやめる' : '部屋を出る') + '</button>' : '');
+      h = '<h2>記録</h2><ol class="log">' + S.log.slice().reverse().map((t) => '<li>' + esc(t) + '</li>').join('') + '</ol><button class="btn ghost" data-a="sheet" data-i="cost">コスト表を見る</button>' + (canVib ? '<button class="btn ghost" data-a="vib">振動：' + (vibOn ? 'オン（押すとオフ）' : 'オフ（押すとオン）') + '</button>' : '<p class="note">この端末のブラウザは振動に対応していません。</p>') + (S.phase !== 'over' ? '<button class="btn ghost" data-a="leave">' + (room.local ? 'ゲームをやめる' : '部屋を出る') + '</button>' : '');
     } else if (kind === 'cost') {
       h = '<h2>コスト表</h2><table class="cost"><tr><th>道</th><td>' + costHtml(E.COST.road) + '</td><td></td></tr><tr><th>開拓地</th><td>' + costHtml(E.COST.settlement) + '</td><td>1点</td></tr><tr><th>都市</th><td>' + costHtml(E.COST.city) + '</td><td>2点・資源2倍</td></tr><tr><th>発展カード</th><td>' + costHtml(E.COST.dev) + '</td><td></td></tr><tr><th>最長交易路</th><td>5本以上で最長</td><td>2点</td></tr><tr><th>最大騎士力</th><td>騎士3枚以上で最多</td><td>2点</td></tr></table><p class="note">自分の番に10点で勝ち。7が出たら、8枚以上持つ人は半分捨てます。</p>';
     }
@@ -644,7 +674,7 @@
     const m = meSeat();
     const dice = S.dice ? '<span class="dice"><b>' + S.dice[0] + '</b><b>' + S.dice[1] + '</b></span>' : '';
     const mine = m === S.turn && S.phase !== 'over';
-    return '<div class="game">' + playersHtml(m) + (room.netMsg ? '<div class="netbar">' + esc(room.netMsg) + '</div>' : '') + '<div class="sea">' + boardSVG(S, targets(), fx) + (room.local ? '' : '<span class="rcode">部屋 ' + esc(room.code) + '</span>') + rollPop() + '</div>'
+    return '<div class="game">' + playersHtml(m) + (room.netMsg ? '<div class="netbar">' + esc(room.netMsg) + '</div>' : '') + '<div class="sea">' + boardSVG(S, targets(), fx, reveal) + (room.local ? '' : '<span class="rcode">部屋 ' + esc(room.code) + '</span>') + rollPop() + '</div>'
       + '<div class="status' + (mine ? ' mine' : '') + '">' + dice + '<span>' + statusText(m) + '</span></div>' + handHtml(m) + actionsHtml(m) + sheetHtml(m) + '</div>';
   }
   function render() {
@@ -691,6 +721,9 @@
       case 'resp': act({ t: 'respondTrade', id: S.trade.id, ok: i === '1' }); break;
       case 'confirm': act({ t: 'confirmTrade', with: +i }); break;
       case 'acceptCounter': act({ t: 'acceptCounter', with: +i }); break;
+      case 'rejectCounter': act({ t: 'rejectCounter', with: +i }); break;
+      case 'reoffer': { const t = S.trade, g = clone(t.give), w = clone(t.want); if (act({ t: 'cancelTrade' })) { ui.give = g; ui.want = w; ui.tab = 'player'; ui.sheet = 'trade'; render(); } break; }
+      case 'vib': vibOn = !vibOn; ls.set('shima.vib', vibOn ? '1' : '0'); buzz(30); render(); break;
       case 'counterOpen': { const t = S.trade, hand = S.players[m].res; ui.counter = true; ui.give = E.zero(); ui.want = E.zero(); RES.forEach((r) => { ui.give[r] = Math.min(t.want[r], hand[r]); ui.want[r] = t.give[r]; }); render(); break; }
       case 'counterBack': ui.counter = false; render(); break;
       case 'counter': act({ t: 'counterTrade', id: S.trade.id, give: clone(ui.give), want: clone(ui.want) }); break;

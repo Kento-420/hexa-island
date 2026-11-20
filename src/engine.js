@@ -435,6 +435,12 @@
         S.trade = null;
         return OK;
       }
+      case 'rejectCounter': { // 逆提案を1つだけ断る（自分の提案は残る）
+        const t = S.trade;
+        if (!t || !t.counters || !t.counters[a.with] || t.resp[a.with] !== 'counter') return E('逆提案がありません');
+        delete t.counters[a.with]; t.resp[a.with] = false;
+        return OK;
+      }
       case 'cancelTrade': { if (!S.trade) return E('提案がありません'); S.trade = null; return OK; }
       case 'endTurn': {
         if (S.phase !== 'main') return E('今は終われません');

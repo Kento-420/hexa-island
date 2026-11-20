@@ -8,6 +8,7 @@ const E=require('./engine.js'),AI=require('./ai.js');const assert=(c,m)=>{if(!c)
  assert(!E.apply(S,1,{t:'counterTrade',id:S.trade.id,give:{sheep:1},want:{wood:2}}).err,'counter ok');
  assert(S.trade.resp[1]==='counter','resp');assert(E.apply(S,0,{t:'confirmTrade',with:1}).err,'confirm must fail');
  assert(E.apply(S,0,{t:'acceptCounter',with:2}).err,'no counter from 2');
+ {const T=JSON.parse(JSON.stringify(S));assert(E.apply(T,1,{t:'rejectCounter',with:1}).err,'only offerer rejects');assert(!E.apply(T,0,{t:'rejectCounter',with:1}).err,'reject');assert(T.trade&&T.trade.resp[1]===false&&!T.trade.counters[1],'rejected, offer stays');assert(E.apply(T,0,{t:'acceptCounter',with:1}).err,'gone');assert(!E.apply(T,0,{t:'offerTrade',give:{wood:2},want:{sheep:1}}).err&&T.trade.id===2&&!Object.keys(T.trade.resp).length,'re-offer replaces');}
  assert(!E.apply(S,0,{t:'acceptCounter',with:1}).err,'accept');
  assert(S.players[0].res.wood===0&&S.players[0].res.sheep===1&&S.players[1].res.wood===2&&S.players[1].res.sheep===1&&S.trade===null,'moved');
  E.RES.forEach(r=>assert(S.bank[r]+S.players.reduce((s,p)=>s+p.res[r],0)===19,'conserve'));}
