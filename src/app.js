@@ -164,16 +164,19 @@
   const REVEAL_GAP = 90, REVEAL_ORDER = (function () { const idx = G.hexes.map((_, i) => i).sort((a, b) => { const A = G.hexes[a], B = G.hexes[b], da = Math.round(Math.hypot(A.x, A.y)), db = Math.round(Math.hypot(B.x, B.y)); return db - da || Math.atan2(A.y, A.x) - Math.atan2(B.y, B.x); }); const o = []; idx.forEach((h, k) => { o[h] = k; }); return o; })();
   // 振動（対応している端末だけ。設定は端末に残る）
   const canVib = typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
-  let vibOn = ls.get('shima.vib') !== '0';
+  // 振動の強さ 0=オフ 1=弱 2=ふつう 3=強（端末に残る）
+  let vibLv = (function () { const v = ls.get('shima.vib2'); if (v !== null && /^[0-3]$/.test(v)) return +v; return ls.get('shima.vib') === '0' ? 0 : 2; })();
+  const VIBJA = ['オフ', '弱', 'ふつう', '強'];
   // 短すぎる振動は多くのAndroid端末で感じ取れないので、長さを底上げして送る
   const buzz = (p) => {
-    if (!canVib || !vibOn) return;
-    const arr = (Array.isArray(p) ? p : [p]).map((x, i) => (i % 2 ? Math.max(70, x) : Math.max(45, Math.round(x * 2.2))));
+    if (!canVib || !vibLv) return;
+    const k = [0, 0.8, 1.3, 2.2][vibLv], lo = [0, 22, 32, 45][vibLv];
+    const arr = (Array.isArray(p) ? p : [p]).map((x, i) => (i % 2 ? Math.max(70, x) : Math.max(lo, Math.round(x * k))));
     try { navigator.vibrate(arr); } catch (e) { /* 対応していなければ何もしない */ }
   };
   function vibTest() {
     if (!canVib) { toast('このブラウザは振動に対応していません。Chromeで開いてください'); return; }
-    let ok = false; try { ok = navigator.vibrate([250, 120, 250]); } catch (e) { ok = false; }
+    let ok = false; try { ok = navigator.vibrate([120, 80, 120]); } catch (e) { ok = false; }
     toast(ok ? '振動を送りました。震えなければ、本体のマナーモード・おやすみモード・省電力と「バイブと触覚」の設定を見てください' : 'ブラウザに振動を止められました。Chromeで直接このページを開いてください');
   }
   let lastTradeId = 0, lastCounterN = 0, lastOver = '';
@@ -457,7 +460,7 @@
   const f = (n) => n.toFixed(1);
   function boardSVG(B, tg, gfx, cover) {
     let o = '<svg class="board" viewBox="-262 -236 524 472" role="img" aria-label="盤面">';
-    B.ports.forEach((p) => {
+    if (!cover) B.ports.forEach((p) => { // タイルを伏せている間は港も見せない
       const ed = G.edges[p.e], m = G.mid(ed), hx = G.hexes[ed.hexes[0]];
       let dx = m.x - hx.x, dy = m.y - hx.y; const l = Math.hypot(dx, dy); dx /= l; dy /= l;
       const bx = m.x + dx * 25, by = m.y + dy * 25;
@@ -693,7 +696,7 @@
       h = '<h2>' + (two ? '豊作：2枚えらぶ' : '独占：1種類えらぶ') + '</h2>' + miniHand(p) + '<div class="pick">' + RES.map((r) => '<button data-a="pk" data-i="' + r + '"' + (two && S.bank[r] < 1 ? ' disabled' : '') + '>' + ICON[r] + '<small>' + JA[r] + (two ? ' ' + ui.pick.filter((x) => x === r).length : '') + '</small></button>').join('') + '</div>';
       if (two) h += '<button class="btn pri" data-a="pkgo"' + (ui.pick.length === 2 ? '' : ' disabled') + '>もらう（' + ui.pick.length + '/2）</button><button class="btn ghost" data-a="pkclr">えらび直す</button>';
     } else if (kind === 'log') {
-      h = '<h2>記録</h2><ol class="log">' + S.log.slice().reverse().map((t) => '<li>' + esc(t) + '</li>').join('') + '</ol><button class="btn ghost" data-a="sheet" data-i="cost">コスト表を見る</button>' + (canVib ? '<button class="btn ghost" data-a="vib">振動：' + (vibOn ? 'オン（押すとオフ）' : 'オフ（押すとオン）') + '</button>' : '') + '<button class="btn ghost" data-a="vibTest">振動テスト</button>' + (S.phase !== 'over' ? '<button class="btn ghost" data-a="leave">' + (room.local ? 'ゲームをやめる' : '部屋を出る') + '</button>' : '');
+      h = '<h2>記録</h2><ol class="log">' + S.log.slice().reverse().map((t) => '<li>' + esc(t) + '</li>').join('') + '</ol><button class="btn ghost" data-a="sheet" data-i="cost">コスト表を見る</button>' + (canVib ? '<button class="btn ghost" data-a="vib">振動の強さ：' + VIBJA[vibLv] + '（押すと切りかえ）</button>' : '') + '<button class="btn ghost" data-a="vibTest">振動テスト</button>' + (S.phase !== 'over' ? '<button class="btn ghost" data-a="leave">' + (room.local ? 'ゲームをやめる' : '部屋を出る') + '</button>' : '');
     } else if (kind === 'cost') {
       h = '<h2>コスト表</h2><table class="cost"><tr><th>道</th><td>' + costHtml(E.COST.road) + '</td><td></td></tr><tr><th>開拓地</th><td>' + costHtml(E.COST.settlement) + '</td><td>1点</td></tr><tr><th>都市</th><td>' + costHtml(E.COST.city) + '</td><td>2点・資源2倍</td></tr><tr><th>発展カード</th><td>' + costHtml(E.COST.dev) + '</td><td></td></tr><tr><th>最長交易路</th><td>5本以上で最長</td><td>2点</td></tr><tr><th>最大騎士力</th><td>騎士3枚以上で最多</td><td>2点</td></tr></table><p class="note">自分の番に10点で勝ち。7が出たら、8枚以上持つ人は半分捨てます。</p>';
     }
@@ -766,7 +769,7 @@
       case 'rejectCounter': act({ t: 'rejectCounter', with: +i }); break;
       case 'reoffer': { const t = S.trade, g = clone(t.give), w = clone(t.want); if (act({ t: 'cancelTrade' })) { ui.give = g; ui.want = w; ui.tab = 'player'; ui.sheet = 'trade'; render(); } break; }
       case 'vibTest': vibTest(); break;
-      case 'vib': vibOn = !vibOn; ls.set('shima.vib', vibOn ? '1' : '0'); buzz(30); render(); break;
+      case 'vib': vibLv = (vibLv + 1) % 4; ls.set('shima.vib2', String(vibLv)); buzz([30, 60, 30]); render(); break;
       case 'counterOpen': { const t = S.trade, hand = S.players[m].res; ui.counter = true; ui.give = E.zero(); ui.want = E.zero(); RES.forEach((r) => { ui.give[r] = Math.min(t.want[r], hand[r]); ui.want[r] = t.give[r]; }); render(); break; }
       case 'counterBack': ui.counter = false; render(); break;
       case 'counter': act({ t: 'counterTrade', id: S.trade.id, give: clone(ui.give), want: clone(ui.want) }); break;
