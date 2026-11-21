@@ -72,6 +72,7 @@ input.code{letter-spacing:.3em;text-transform:uppercase;font-variant-numeric:tab
 .pn{display:flex;align-items:center;gap:4px;font-size:12px;font-weight:700;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pv{font-size:11px;display:flex;align-items:baseline;gap:3px}.pv b{font-size:19px;font-weight:900;font-variant-numeric:tabular-nums}
 .pv{flex-wrap:wrap;row-gap:0}.pv em{font-style:normal;font-size:9.5px;font-weight:900;background:#f5b700;color:var(--ink);border-radius:5px;padding:0 4px;white-space:nowrap}
+.pv .real{font-size:10px;font-weight:900;color:#a23a16;white-space:nowrap;margin-left:-2px}
 .pst{position:relative;display:grid;grid-template-columns:1fr 1fr;gap:2px 4px;width:100%;margin-top:1px}
 .pst i{font-style:normal;font-size:10px;color:var(--ink-2);display:flex;align-items:baseline;justify-content:space-between;background:rgba(255,255,255,.6);border-radius:5px;padding:0 4px;white-space:nowrap}
 .pst i b{font-size:13px;font-weight:900;color:var(--ink);font-variant-numeric:tabular-nums}
@@ -1543,11 +1544,13 @@ h2.win{font-family:var(--display);font-weight:400;font-size:24px;display:flex;al
   function playersHtml(m) {
     let o = '<div class="players n' + S.players.length + '">';
     S.players.forEach((p, s) => {
-      const vp = s === m || S.phase === 'over' ? E.totalVP(S, s) : E.publicVP(S, s); // ほかの人の勝利点カードは、終わるまで数えない
+      // 点数は「まわりから見える分」を出す。自分だけ、勝利点カード込みの本当の点を（ ）で添える。終わったら全員ぶん公開
+      const pub = E.publicVP(S, s), tot = E.totalVP(S, s), over = S.phase === 'over';
+      const vp = over ? tot : pub, real = !over && s === m && tot > pub ? '<span class="real">（実は' + tot + '）</span>' : '';
       o += '<button class="pl' + (s === S.turn && S.phase !== 'over' ? ' on' : '') + (s === m ? ' me' : '') + '" style="--pc:' + PCOL[s] + '" data-a="view" data-i="' + s + '">';
       o += '<span class="pn"><i class="dot"></i>' + esc(p.name) + '</span>';
       const lr = S.longestRoad === s, la = S.largestArmy === s;
-      o += '<span class="pv"><b>' + vp + '</b>点' + (lr ? '<em>最長+2</em>' : '') + (la ? '<em>騎士+2</em>' : '') + '</span>';
+      o += '<span class="pv"><b>' + vp + '</b>点' + real + (lr ? '<em>最長+2</em>' : '') + (la ? '<em>騎士+2</em>' : '') + '</span>';
       const gg = fx && fx.g[s] ? RES.filter((r) => fx.g[s][r]) : [];
       const cf = chipFx[s] && Date.now() - chipFx[s].t < 3000 ? chipFx[s] : null;
       // 手札・発展カード・使った騎士・いちばん長い道。称号を持っている項目は金色
@@ -1695,7 +1698,7 @@ h2.win{font-family:var(--display);font-weight:400;font-size:24px;display:flex;al
       const ports = S.ports.filter((pt) => [G.edges[pt.e].a, G.edges[pt.e].b].some((v) => S.bld[v] && S.bld[v].p === s)).map((pt) => (pt.type === 'any' ? '3:1' : ICON[pt.type] + '2:1'));
       const row = (k, v, hl) => '<tr class="' + (hl ? 'hl' : '') + '"><th>' + k + '</th><td>' + v + '</td></tr>';
       h = '<h2><i class="dot" style="background:' + PCOL[s] + '"></i> ' + esc(q.name) + (isMe ? '（あなた）' : '') + '</h2><table class="cost pinfo">';
-      h += row('勝利点', '<b>' + (isMe ? E.totalVP(S, s) : E.publicVP(S, s)) + '点</b>' + (isMe ? '' : '（見えている分）'));
+      h += row('勝利点', '<b>' + E.publicVP(S, s) + '点</b>（まわりから見える分）' + (isMe && vpc ? '<br><b>' + E.totalVP(S, s) + '点</b>（勝利点カード込みの本当の点）' : ''));
       h += row('　開拓地', nS + 'つ（' + nS + '点）') + row('　都市', nC + 'つ（' + nC * 2 + '点）');
       h += row('　最長交易路', lr ? '持っている（+2点）' : 'なし', lr) + row('　最大騎士力', la ? '持っている（+2点）' : 'なし', la);
       if (isMe && vpc) h += row('　勝利点カード', vpc + '枚（' + vpc + '点・ほかの人には見えない）');

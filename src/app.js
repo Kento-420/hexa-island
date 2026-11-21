@@ -645,11 +645,13 @@
   function playersHtml(m) {
     let o = '<div class="players n' + S.players.length + '">';
     S.players.forEach((p, s) => {
-      const vp = s === m || S.phase === 'over' ? E.totalVP(S, s) : E.publicVP(S, s); // ほかの人の勝利点カードは、終わるまで数えない
+      // 点数は「まわりから見える分」を出す。自分だけ、勝利点カード込みの本当の点を（ ）で添える。終わったら全員ぶん公開
+      const pub = E.publicVP(S, s), tot = E.totalVP(S, s), over = S.phase === 'over';
+      const vp = over ? tot : pub, real = !over && s === m && tot > pub ? '<span class="real">（実は' + tot + '）</span>' : '';
       o += '<button class="pl' + (s === S.turn && S.phase !== 'over' ? ' on' : '') + (s === m ? ' me' : '') + '" style="--pc:' + PCOL[s] + '" data-a="view" data-i="' + s + '">';
       o += '<span class="pn"><i class="dot"></i>' + esc(p.name) + '</span>';
       const lr = S.longestRoad === s, la = S.largestArmy === s;
-      o += '<span class="pv"><b>' + vp + '</b>点' + (lr ? '<em>最長+2</em>' : '') + (la ? '<em>騎士+2</em>' : '') + '</span>';
+      o += '<span class="pv"><b>' + vp + '</b>点' + real + (lr ? '<em>最長+2</em>' : '') + (la ? '<em>騎士+2</em>' : '') + '</span>';
       const gg = fx && fx.g[s] ? RES.filter((r) => fx.g[s][r]) : [];
       const cf = chipFx[s] && Date.now() - chipFx[s].t < 3000 ? chipFx[s] : null;
       // 手札・発展カード・使った騎士・いちばん長い道。称号を持っている項目は金色
@@ -797,7 +799,7 @@
       const ports = S.ports.filter((pt) => [G.edges[pt.e].a, G.edges[pt.e].b].some((v) => S.bld[v] && S.bld[v].p === s)).map((pt) => (pt.type === 'any' ? '3:1' : ICON[pt.type] + '2:1'));
       const row = (k, v, hl) => '<tr class="' + (hl ? 'hl' : '') + '"><th>' + k + '</th><td>' + v + '</td></tr>';
       h = '<h2><i class="dot" style="background:' + PCOL[s] + '"></i> ' + esc(q.name) + (isMe ? '（あなた）' : '') + '</h2><table class="cost pinfo">';
-      h += row('勝利点', '<b>' + (isMe ? E.totalVP(S, s) : E.publicVP(S, s)) + '点</b>' + (isMe ? '' : '（見えている分）'));
+      h += row('勝利点', '<b>' + E.publicVP(S, s) + '点</b>（まわりから見える分）' + (isMe && vpc ? '<br><b>' + E.totalVP(S, s) + '点</b>（勝利点カード込みの本当の点）' : ''));
       h += row('　開拓地', nS + 'つ（' + nS + '点）') + row('　都市', nC + 'つ（' + nC * 2 + '点）');
       h += row('　最長交易路', lr ? '持っている（+2点）' : 'なし', lr) + row('　最大騎士力', la ? '持っている（+2点）' : 'なし', la);
       if (isMe && vpc) h += row('　勝利点カード', vpc + '枚（' + vpc + '点・ほかの人には見えない）');
