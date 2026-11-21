@@ -666,7 +666,7 @@
     return '<div class="hand">' + RES.map((r) => { const up = handFx ? handFx.d[r] || 0 : 0; return '<span class="rc' + (p.res[r] ? '' : ' z') + (up > 0 ? ' up' : up < 0 ? (handFx.strong ? ' down' : ' spent') : '') + '" data-r="' + r + '"' + (up ? ' ' + dl(handFx.t) : '') + '>' + ICON[r] + '<small>' + JA[r] + '</small><b>' + p.res[r] + '</b>' + (up > 0 ? '<i class="plus" ' + dl(handFx.t) + '>+' + up + '</i>' : up < 0 ? '<i class="plus minus' + (handFx.strong ? '' : ' soft') + '" ' + dl(handFx.t) + '>−' + (-up) + '</i>' : '') + '</span>'; }).join('') + '</div>';
   }
   function actionsHtml(m) {
-    if (m < 0 || S.phase === 'over') return '<div class="acts"><button class="ab" data-a="sheet" data-i="log">記録</button><button class="ab" data-a="sheet" data-i="cost">コスト表</button><button class="ab" data-a="leave">' + (room.local ? 'やめる' : '部屋を出る') + '</button></div>';
+    if (m < 0 || S.phase === 'over') return '<div class="acts"><button class="ab" data-a="sheet" data-i="menu">☰ メニュー</button><button class="ab" data-a="sheet" data-i="log">記録</button><button class="ab" data-a="sheet" data-i="cost">コスト表</button></div>';
     const p = S.players[m], mine = m === S.turn, main = mine && S.phase === 'main';
     const b = (a, i, label, sub, en, cls) => '<button class="ab' + (cls ? ' ' + cls : '') + '" data-a="' + a + '"' + (i ? ' data-i="' + i + '"' : '') + (en ? '' : ' disabled') + '>' + label + (sub ? '<small>' + sub + '</small>' : '') + '</button>';
     const devN = p.dev.length + p.devNew.length, col = PCOL[m];
@@ -679,7 +679,7 @@
       o += b('sheet', 'trade', '交換', '', main);
     }
     o += b('sheet', 'dev', 'カード', devN ? devN + '枚' : '', devN > 0);
-    o += b('sheet', 'log', '記録', '', true);
+    o += b('sheet', 'menu', '☰ メニュー', '', true);
     if (!(mine && S.phase === 'roll')) o += b('endTurn', '', 'ターン終了', '', main, main ? 'pri' : '');
     return o + '</div>';
   }
@@ -787,15 +787,19 @@
       const ask = { restart: ['最初からやり直す？', '今のゲームは消えて、新しい盤面で始まります。' + (room.local ? '' : '全員の画面が切りかわります。'), 'やり直す'], lobby: ['待合にもどる？', '今のゲームは消えます。全員が待合にもどり、メンバーやCPUを変えてから始め直せます。', 'もどる'], leave: [room.local ? 'タイトルにもどる？' : '部屋を出る？', room.local ? '今のゲームは消えます。' : (host ? 'あなたは親なので、出ると部屋が止まります。' : 'ゲームは続きます。同じコードでもどれます。'), room.local ? 'もどる' : '出る'] }[ui.confirm];
       if (ask) h = '<h2>' + ask[0] + '</h2><p class="lead">' + ask[1] + '</p><div class="row2"><button class="btn pri" data-a="menuDo">' + ask[2] + '</button><button class="btn" data-a="menuNo">やめる</button></div>';
       else {
+        const item = (a, i2, label, sub) => '<button class="btn mi" data-a="' + a + '"' + (i2 ? ' data-i="' + i2 + '"' : '') + '><b>' + label + '</b><small>' + sub + '</small></button>';
         h = '<h2>メニュー</h2><div class="col">';
-        if (host) h += '<button class="btn" data-a="menuAsk" data-i="restart">最初からやり直す</button>';
-        if (host && !room.local) h += '<button class="btn" data-a="menuAsk" data-i="lobby">待合にもどる（メンバーを変える）</button>';
+        h += item('sheet', 'log', '記録', 'これまでの出来事を新しい順に見る');
+        h += item('sheet', 'cost', 'コスト表', '建設に必要な資源と、点数の入り方');
+        if (canVib) h += item('vib', '', '振動の強さ：' + VIBJA[vibLv], '押すたびに オフ・弱・ふつう・強 と切りかわる');
+        h += '<div class="sep">ゲームを変える</div>';
+        if (host) h += item('menuAsk', 'restart', '最初からやり直す', '同じメンバーのまま、新しい盤面で始め直す');
+        if (host && !room.local) h += item('menuAsk', 'lobby', '待合にもどる', 'メンバーやCPUを入れかえてから始め直す');
         if (!host) h += '<p class="note">やり直しと待合にもどる操作は、部屋を作った人（親）ができます。</p>';
-        h += '<button class="btn" data-a="menuAsk" data-i="leave">' + (room.local ? 'タイトルにもどる' : '部屋を出る') + '</button>';
-        h += '<button class="btn ghost" data-a="sheet" data-i="log">記録を見る</button><button class="btn ghost" data-a="sheet" data-i="cost">コスト表を見る</button>' + (canVib ? '<button class="btn ghost" data-a="vib">振動の強さ：' + VIBJA[vibLv] + '（押すと切りかえ）</button>' : '') + '</div>';
+        h += item('menuAsk', 'leave', room.local ? 'タイトルにもどる' : '部屋を出る', room.local ? '今のゲームをやめる' : '自分だけ部屋から出る') + '</div>';
       }
     } else if (kind === 'log') {
-      h = '<h2>記録</h2><ol class="log">' + S.log.slice().reverse().map((t) => '<li>' + esc(t) + '</li>').join('') + '</ol><button class="btn ghost" data-a="sheet" data-i="cost">コスト表を見る</button>' + (canVib ? '<button class="btn ghost" data-a="vib">振動の強さ：' + VIBJA[vibLv] + '（押すと切りかえ）</button>' : '') + '<button class="btn ghost" data-a="vibTest">振動テスト</button>' + (S.phase !== 'over' ? '<button class="btn ghost" data-a="leave">' + (room.local ? 'ゲームをやめる' : '部屋を出る') + '</button>' : '');
+      h = '<h2>記録</h2><ol class="log">' + S.log.slice().reverse().map((t) => '<li>' + esc(t) + '</li>').join('') + '</ol><button class="btn ghost" data-a="sheet" data-i="menu">メニューにもどる</button>';
     } else if (kind === 'cost') {
       h = '<h2>コスト表</h2><table class="cost"><tr><th>道</th><td>' + costHtml(E.COST.road) + '</td><td></td></tr><tr><th>開拓地</th><td>' + costHtml(E.COST.settlement) + '</td><td>1点</td></tr><tr><th>都市</th><td>' + costHtml(E.COST.city) + '</td><td>2点・資源2倍</td></tr><tr><th>発展カード</th><td>' + costHtml(E.COST.dev) + '</td><td></td></tr><tr><th>最長交易路</th><td>5本以上で最長</td><td>2点</td></tr><tr><th>最大騎士力</th><td>騎士3枚以上で最多</td><td>2点</td></tr></table><p class="note">自分の番に10点で勝ち。7が出たら、8枚以上持つ人は半分捨てます。</p>';
     }
@@ -817,7 +821,7 @@
       const label = sel.k === 'h' ? '盗賊をここへ動かす' : sel.k === 'v' ? (free ? '開拓地をここに置く' : '開拓地を建てる <small>' + costHtml(E.COST.settlement) + '</small>') : sel.k === 'c' ? '都市にする <small>' + costHtml(E.COST.city) + '</small>' : S.phase === 'roadbuilding' ? '道をここに置く（無料）' : free ? '道をここに置く' : '道を置く <small>' + costHtml(E.COST.road) + '</small>';
       bar = '<div class="status mine cf"><span>' + label + '</span><button class="okb" data-a="ok">' + (sel.k === 'h' ? '動かす' : free ? '置く' : '建てる') + '</button><button class="nob" data-a="no">やめる</button></div>';
     } else bar = '<div class="status' + (mine ? ' mine' : '') + '">' + dice + '<span>' + statusText(m) + '</span></div>';
-    return '<div class="game">' + playersHtml(m) + (room.netMsg ? '<div class="netbar">' + esc(room.netMsg) + '</div>' : '') + '<div class="sea">' + boardSVG(S, tg, fx, reveal, robFx) + '<button class="menub" data-a="sheet" data-i="menu" aria-label="メニュー">☰</button>' + (room.local ? '' : '<span class="rcode">部屋 ' + esc(room.code) + '</span>') + rollPop() + '</div>'
+    return '<div class="game">' + playersHtml(m) + (room.netMsg ? '<div class="netbar">' + esc(room.netMsg) + '</div>' : '') + '<div class="sea">' + boardSVG(S, tg, fx, reveal, robFx) + (room.local ? '' : '<span class="rcode">部屋 ' + esc(room.code) + '</span>') + rollPop() + '</div>'
       + bar + handHtml(m) + actionsHtml(m) + sheetHtml(m) + '</div>';
   }
   function render() {
