@@ -399,17 +399,22 @@
         p.dev.splice(i, 1); S.devPlayed = true;
         return OK;
       }
-      case 'bankTrade': { // gets に複数入れると、まとめて交換できる
+      case 'bankTrade': { // まとめて交換。gives は {資源: 何組出すか}、gets はもらう資源のならび
         if (S.phase !== 'main') return E('交換はサイコロのあとです');
         const gets = Array.isArray(a.gets) ? a.gets : [a.get];
-        if (RES.indexOf(a.give) < 0 || !gets.length || gets.length > 12 || gets.some((r) => RES.indexOf(r) < 0 || r === a.give)) return E('資源をえらんでください');
-        const rate = tradeRate(S, seat, a.give), cost = rate * gets.length;
-        if (p.res[a.give] < cost) return E(RES_JA[a.give] + ' が' + cost + '枚必要です');
+        const sets = zero();
+        if (a.gives && typeof a.gives === 'object') { if (!validBundle(a.gives)) return E('資源をえらんでください'); RES.forEach((r) => { sets[r] = a.gives[r] || 0; }); }
+        else if (RES.indexOf(a.give) >= 0) sets[a.give] = gets.length;
+        const nSets = total(sets);
+        if (!nSets || nSets !== gets.length || gets.length > 12 || gets.some((r) => RES.indexOf(r) < 0 || sets[r] > 0)) return E('出す組数と、もらう枚数をそろえてください');
+        const cost = zero(); RES.forEach((r) => { cost[r] = sets[r] * tradeRate(S, seat, r); });
+        const short = RES.filter((r) => p.res[r] < cost[r])[0];
+        if (short) return E(RES_JA[short] + ' が' + cost[short] + '枚必要です');
         const cnt = zero(); gets.forEach((r) => { cnt[r]++; });
         if (RES.some((r) => cnt[r] > S.bank[r])) return E('銀行にありません');
-        p.res[a.give] -= cost; S.bank[a.give] += cost;
-        RES.forEach((r) => { p.res[r] += cnt[r]; S.bank[r] -= cnt[r]; });
-        log(S, name(S, seat) + ' が ' + RES_JA[a.give] + cost + ' → ' + RES.filter((r) => cnt[r]).map((r) => RES_JA[r] + cnt[r]).join(' ') + ' に交換');
+        RES.forEach((r) => { p.res[r] += cnt[r] - cost[r]; S.bank[r] += cost[r] - cnt[r]; });
+        const list = (o) => RES.filter((r) => o[r]).map((r) => RES_JA[r] + o[r]).join(' ');
+        log(S, name(S, seat) + ' が ' + list(cost) + ' → ' + list(cnt) + ' に交換');
         return OK;
       }
       case 'offerTrade': {

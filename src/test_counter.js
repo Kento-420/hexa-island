@@ -18,6 +18,9 @@ const E=require('./engine.js'),AI=require('./ai.js');const assert=(c,m)=>{if(!c)
  const rate=E.tradeRate(S,0,'wood');assert(E.apply(S,0,{t:'bankTrade',give:'wood',gets:['brick','wood']}).err,'cannot get same');
  assert(E.apply(S,0,{t:'bankTrade',give:'wood',gets:new Array(Math.floor(9/rate)+1).fill('brick')}).err,'too many');
  assert(!E.apply(S,0,{t:'bankTrade',give:'wood',gets:['brick','wheat']}).err,'multi');assert(S.players[0].res.wood===9-rate*2&&S.players[0].res.brick===1&&S.players[0].res.wheat===1,'multi result');
+ {const T=JSON.parse(JSON.stringify(S));T.players[0].res.wood=0;T.bank.wood=19-T.players[1].res.wood-T.players[2].res.wood;const put=(r,n)=>{T.players[0].res[r]+=n;T.bank[r]-=n};const rw=E.tradeRate(T,0,'wood'),ro=E.tradeRate(T,0,'ore');put('wood',rw);put('ore',ro);const b0=T.players[0].res.sheep;
+  assert(E.apply(T,0,{t:'bankTrade',gives:{wood:1,ore:1},gets:['sheep']}).err,'sets must equal gets');assert(E.apply(T,0,{t:'bankTrade',gives:{wood:1,ore:1},gets:['sheep','ore']}).err,'cannot get what you give');
+  assert(!E.apply(T,0,{t:'bankTrade',gives:{wood:1,ore:1},gets:['sheep','sheep']}).err&&T.players[0].res.wood===0&&T.players[0].res.sheep===b0+2,'two kinds out, two in');E.RES.forEach(r=>assert(T.bank[r]+T.players.reduce((x,q)=>x+q.res[r],0)===19,'conserve3'));}
  assert(E.apply(S,0,{t:'offerTrade',give:{},want:{}}).err,'both empty');
  assert(!E.apply(S,0,{t:'offerTrade',give:{},want:{sheep:1}}).err&&S.trade.open==='give','open give');
  assert(E.apply(S,1,{t:'respondTrade',id:S.trade.id,ok:true}).err,'cannot plain-accept open');

@@ -156,7 +156,7 @@
   let room = null;   // {code, local, host, seats, inputs, unsub, slow}
   let S = null, me = -1;
   let busy = false;
-  const blankUi = () => ({ confirm: null, pv: 0, sel: null, counter: false, mode: null, sheet: null, tab: 'bank', give: E.zero(), want: E.zero(), disc: E.zero(), bankGive: null, bankPick: [], pick: [], view: 0, sentDiscard: false, sentTrade: 0 });
+  const blankUi = () => ({ confirm: null, pv: 0, sel: null, counter: false, mode: null, sheet: null, tab: 'bank', give: E.zero(), want: E.zero(), disc: E.zero(), bankSets: E.zero(), bankGetN: E.zero(), pick: [], view: 0, sentDiscard: false, sentTrade: 0 });
   let ui = blankUi();
   let lastTurnKey = '', lastStealRev = 0, lastMonoKey = '';
   let robFx = null, robTimer = null, prevRob = null, chipFx = {}, chipTimer = null, prevNeed = null;
@@ -743,12 +743,13 @@
     } else if (kind === 'trade') {
       h = '<div class="tabs"><button class="' + (ui.tab === 'bank' ? 'on' : '') + '" data-a="tab" data-i="bank">銀行・港</button><button class="' + (ui.tab === 'player' ? 'on' : '') + '" data-a="tab" data-i="player">みんなと交渉</button></div>' + miniHand(p);
       if (ui.tab === 'bank') {
-        h += '<p class="eyebrow">出す</p><div class="pick">' + RES.map((r) => { const rate = E.tradeRate(S, m, r); return '<button class="' + (ui.bankGive === r ? 'on' : '') + '" data-a="bg" data-i="' + r + '"' + (p.res[r] >= rate ? '' : ' disabled') + '>' + ICON[r] + '<small>持ち' + p.res[r] + '</small><small class="rt">' + rate + '枚で1</small></button>'; }).join('') + '</div>';
-        { const g = ui.bankGive, rate = g ? E.tradeRate(S, m, g) : 0, max = g ? Math.floor(p.res[g] / rate) : 0, n = ui.bankPick.length, cnt = E.zero(); ui.bankPick.forEach((r) => { cnt[r]++; });
-          h += '<p class="eyebrow">もらう' + (g ? '（' + n + '/' + max + '枚まで。押した回数だけもらえる）' : '（先に出すものをえらぶ）') + '</p><div class="pick">' + RES.map((r) => '<button class="' + (cnt[r] ? 'on' : '') + '" data-a="bt" data-i="' + r + '"' + (g && r !== g && n < max && S.bank[r] - cnt[r] > 0 ? '' : ' disabled') + '>' + ICON[r] + '<small>' + (cnt[r] ? '×' + cnt[r] : JA[r]) + '</small></button>').join('') + '</div>';
-          if (n) h += '<div class="deal"><div><small>出す</small>' + ICON[g] + '<b>' + rate * n + '</b></div><div><small>もらう</small>' + bundle(cnt) + '</div></div>';
-          h += '<button class="btn pri" data-a="bank"' + (n ? '' : ' disabled') + '>交換する</button>' + (n ? '<button class="btn ghost" data-a="bkclr">えらび直す</button>' : ''); }
-
+        // 出す側は「何組出すか」、もらう側は「何枚もらうか」を ＋／− で決める。種類は混ぜられる
+        const rate = (r) => E.tradeRate(S, m, r), nS = E.total(ui.bankSets), nG = E.total(ui.bankGetN), cost = E.zero(); RES.forEach((r) => { cost[r] = ui.bankSets[r] * rate(r); });
+        const cell = (k, r, val, sub, canUp, canDown, lab) => '<div class="stp' + (ui[k][r] ? ' on' : '') + '"><span>' + ICON[r] + '<small>' + sub + '</small></span><button data-a="st" data-k="' + k + '" data-r="' + r + '" data-d="1"' + (canUp ? '' : ' disabled') + ' aria-label="' + JA[r] + lab + 'を増やす">＋</button><b>' + val + '</b><button data-a="st" data-k="' + k + '" data-r="' + r + '" data-d="-1"' + (canDown ? '' : ' disabled') + ' aria-label="' + JA[r] + lab + 'を減らす">−</button><small class="rt">' + (k === 'bankSets' ? rate(r) + '枚で1' : '') + '</small></div>';
+        h += '<p class="eyebrow">出す（＋を押すたびに1組）</p><div class="steps">' + RES.map((r) => cell('bankSets', r, cost[r] ? cost[r] + '枚' : '0', '持ち' + p.res[r], !ui.bankGetN[r] && (ui.bankSets[r] + 1) * rate(r) <= p.res[r], ui.bankSets[r] > 0, 'を出す組')).join('') + '</div>';
+        h += '<p class="eyebrow">もらう（' + nG + '/' + nS + '枚）</p><div class="steps">' + RES.map((r) => cell('bankGetN', r, ui.bankGetN[r], JA[r], !ui.bankSets[r] && nG < nS && S.bank[r] > ui.bankGetN[r], ui.bankGetN[r] > 0, 'をもらう枚数')).join('') + '</div>';
+        if (nS) h += '<div class="deal"><div><small>出す</small>' + bundle(cost) + '</div><div><small>もらう</small>' + (nG ? bundle(ui.bankGetN) : '<span class="omk">下でえらぶ</span>') + '</div></div>';
+        h += '<button class="btn pri" data-a="bank"' + (nS && nG === nS ? '' : ' disabled') + '>' + (!nS ? '出すものを＋でえらぶ' : nG < nS ? 'もらうものをあと' + (nS - nG) + '枚えらぶ' : '交換する') + '</button>';
       } else {
         h += '<p class="eyebrow">出す</p>' + stepper('give', (r) => (ui.want[r] ? 0 : p.res[r]), p.res) + '<p class="eyebrow">欲しい</p>' + stepper('want', (r) => (ui.give[r] ? 0 : 9));
         { const g = E.total(ui.give), w = E.total(ui.want), hot = room.local && !room.cpu;
@@ -869,10 +870,17 @@
       case 'endTurn': act({ t: 'endTurn' }); break;
       case 'buyDev': { const w = whyNot('dev', m); if (w) { toast(w); break; } } if (act({ t: 'buyDev' })) { const d = S.players[m].devNew; toast(E.DEV_JA[d[d.length - 1]] + ' を引いた'); } break;
       case 'mode': { const w = whyNot(i, m); if (w) { toast(w); break; } ui.mode = ui.mode === i ? null : i; ui.sel = null; render(); break; }
-      case 'sheet': ui.sheet = i; if (i === 'trade') { ui.give = E.zero(); ui.want = E.zero(); ui.bankGive = null; ui.bankPick = []; } render(); break;
+      case 'sheet': ui.sheet = i; if (i === 'trade') { ui.give = E.zero(); ui.want = E.zero(); ui.bankSets = E.zero(); ui.bankGetN = E.zero(); } render(); break;
       case 'close': ui.sheet = null; ui.confirm = null; render(); break;
       case 'tab': ui.tab = i; render(); break;
-      case 'st': { const k = el.dataset.k, r = el.dataset.r; ui[k][r] = Math.max(0, ui[k][r] + (+el.dataset.d)); render(); break; }
+      case 'st': {
+        const k = el.dataset.k, r = el.dataset.r; ui[k][r] = Math.max(0, ui[k][r] + (+el.dataset.d));
+        if (k === 'bankSets') { // 出す組数を減らしたら、もらう枚数もそれ以内に切りつめる
+          let over = E.total(ui.bankGetN) - E.total(ui.bankSets);
+          RES.slice().reverse().forEach((x) => { while (over > 0 && ui.bankGetN[x] > 0) { ui.bankGetN[x]--; over--; } });
+        }
+        render(); break;
+      }
       case 'discard': act({ t: 'discard', res: clone(ui.disc) }); break;
       case 'steal': act({ t: 'steal', target: +i }); break;
       case 'resp': act({ t: 'respondTrade', id: S.trade.id, ok: i === '1' }); break;
@@ -887,10 +895,10 @@
       case 'counter': act({ t: 'counterTrade', id: S.trade.id, give: clone(ui.give), want: clone(ui.want) }); break;
       case 'dealLocal': if (act({ t: 'respondTrade', id: S.trade.id, ok: true }, +i)) act({ t: 'confirmTrade', with: +i }, S.turn); break;
       case 'cancelTrade': act({ t: 'cancelTrade' }); break;
-      case 'bg': ui.bankGive = i; ui.bankPick = []; render(); break;
-      case 'bt': ui.bankPick.push(i); render(); break;
-      case 'bkclr': ui.bankPick = []; render(); break;
-      case 'bank': { const g = ui.bankGive, gets = ui.bankPick.slice(); ui.bankPick = []; if (act({ t: 'bankTrade', give: g, gets })) { if (S.players[m].res[g] < E.tradeRate(S, m, g)) ui.bankGive = null; } render(); break; }
+
+
+
+      case 'bank': { const gets = []; RES.forEach((r) => { for (let k = 0; k < ui.bankGetN[r]; k++) gets.push(r); }); const gives = clone(ui.bankSets); if (act({ t: 'bankTrade', gives, gets })) { ui.bankSets = E.zero(); ui.bankGetN = E.zero(); } render(); break; }
       case 'offer': if (act({ t: 'offerTrade', give: clone(ui.give), want: clone(ui.want) })) { ui.sheet = null; render(); } break;
       case 'dev':
         if (i === 'plenty' || i === 'mono') { ui.sheet = i; ui.pick = []; render(); }
