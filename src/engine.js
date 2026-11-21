@@ -81,12 +81,16 @@
       dice: null, devPlayed: false, discardNeed: {}, victims: null, resume: 'main', freeRoads: 0,
       trade: null, tradeSeq: 0, longestRoad: null, largestArmy: null, roadLens: players.map(() => 0),
       winner: null, seen: {}, log: [], gainSeq: 0, lastGain: null,
+      // 戦績（終わったあとの結果発表に使う）
+      stats: players.map(() => ({ gain: 0, rolls: 0, sevens: 0, robbed: 0, stole: 0, disc: 0, trades: 0, bank: 0, built: 0, dev: 0 })),
+      diceHist: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], turns: 0,
     };
   }
 
   // ---------- 判定 ----------
   const name = (S, s) => S.players[s].name;
   function log(S, t) { S.log.push(t); if (S.log.length > 60) S.log.shift(); }
+  const stat = (S, s, k, n) => { if (S.stats && S.stats[s]) S.stats[s][k] = (S.stats[s][k] || 0) + (n === undefined ? 1 : n); };
   const canAfford = (p, cost) => RES.every((r) => (p.res[r] || 0) >= (cost[r] || 0));
   function pay(S, p, cost) { RES.forEach((r) => { const c = cost[r] || 0; p.res[r] -= c; S.bank[r] += c; }); }
 
@@ -185,7 +189,7 @@
   }
   function checkWin(S) {
     if (S.phase === 'over' || S.phase === 'setup') return;
-    if (totalVP(S, S.turn) >= WIN) { S.phase = 'over'; S.winner = S.turn; S.trade = null; log(S, name(S, S.turn) + ' の勝ち！（' + totalVP(S, S.turn) + '点）'); }
+    if (totalVP(S, S.turn) >= WIN) { S.phase = 'over'; S.winner = S.turn; S.trade = null; const w = S.players[S.turn], vc = w.dev.concat(w.devNew).filter((c) => c === 'vp').length; log(S, name(S, S.turn) + ' の勝ち！（' + totalVP(S, S.turn) + '点' + (vc ? '・うち勝利点カード' + vc + '枚' : '') + '）'); }
   }
 
   function distribute(S, roll) {
@@ -203,7 +207,7 @@
       if (tot > S.bank[r] && takers > 1) { log(S, RES_JA[r] + ' は銀行に足りず、だれももらえない'); return; }
       gain.forEach((g, s) => {
         const n = Math.min(g[r], S.bank[r]);
-        if (n > 0) { S.players[s].res[r] += n; S.bank[r] -= n; got[s].push(RES_JA[r] + n); }
+        if (n > 0) { S.players[s].res[r] += n; S.bank[r] -= n; got[s].push(RES_JA[r] + n); stat(S, s, 'gain', n); }
       });
     });
     got.forEach((g, s) => { if (g.length) log(S, name(S, s) + ' ＋' + g.join(' ')); });
@@ -216,7 +220,7 @@
     RES.forEach((r) => { for (let i = 0; i < t.res[r]; i++) pool.push(r); });
     if (!pool.length) return;
     const r = pool[Math.floor(rnd() * pool.length)];
-    t.res[r]--; S.players[seat].res[r]++;
+    t.res[r]--; S.players[seat].res[r]++; stat(S, seat, 'stole'); stat(S, target, 'robbed');
     S.lastSteal = { by: seat, from: target, res: r, rev: S.rev };
     log(S, name(S, seat) + ' が ' + name(S, target) + ' から1枚うばった');
   }
@@ -248,7 +252,7 @@
       if (S.phase !== 'discard' || !need) return E('今は捨てる必要がありません');
       if (!validBundle(a.res) || total(a.res) !== need) return E(need + '枚えらんでください');
       if (!canAfford(p, a.res)) return E('持っていない札です');
-      pay(S, p, a.res); delete S.discardNeed[seat];
+      pay(S, p, a.res); delete S.discardNeed[seat]; stat(S, seat, 'disc', need);
       log(S, name(S, seat) + ' が ' + need + '枚捨てた');
       if (!Object.keys(S.discardNeed).length) S.phase = 'robber';
       return OK;
@@ -295,7 +299,7 @@
         if (!canAfford(p, COST.settlement)) return E('資源が足りません');
         if (!okSettlement(S, seat, v, false)) return E('そこには建てられません');
         pay(S, p, COST.settlement); S.bld[v] = { p: seat, t: 1 }; p.settlementsLeft--;
-        log(S, name(S, seat) + ' が開拓地を建てた'); updateRoads(S);
+        log(S, name(S, seat) + ' が開拓地を建てた'); updateRoads(S); stat(S, seat, 'built');
         return OK;
       }
       case 'placeRoad': {
@@ -312,7 +316,7 @@
         }
         if (S.phase === 'roadbuilding') {
           if (!okRoad(S, seat, e, null)) return E('そこには置けません');
-          S.roads[e] = seat; p.roadsLeft--; S.freeRoads--;
+          S.roads[e] = seat; p.roadsLeft--; S.freeRoads--; stat(S, seat, 'built');
           updateRoads(S); endFreeRoadsIfStuck(S);
           return OK;
         }
@@ -321,7 +325,7 @@
         if (!canAfford(p, COST.road)) return E('資源が足りません');
         if (!okRoad(S, seat, e, null)) return E('そこには置けません');
         pay(S, p, COST.road); S.roads[e] = seat; p.roadsLeft--;
-        log(S, name(S, seat) + ' が道を置いた'); updateRoads(S);
+        log(S, name(S, seat) + ' が道を置いた'); updateRoads(S); stat(S, seat, 'built');
         return OK;
       }
       case 'buildCity': {
@@ -330,7 +334,7 @@
         if (!canAfford(p, COST.city)) return E('資源が足りません');
         if (!okCity(S, seat, a.v)) return E('自分の開拓地をえらんでください');
         pay(S, p, COST.city); S.bld[a.v].t = 2; p.citiesLeft--; p.settlementsLeft++;
-        log(S, name(S, seat) + ' が都市にした');
+        log(S, name(S, seat) + ' が都市にした'); stat(S, seat, 'built');
         return OK;
       }
       case 'buyDev': {
@@ -338,13 +342,14 @@
         if (!S.devDeck.length) return E('発展カードは売り切れです');
         if (!canAfford(p, COST.dev)) return E('資源が足りません');
         pay(S, p, COST.dev); p.devNew.push(S.devDeck.pop());
-        log(S, name(S, seat) + ' が発展カードを買った');
+        log(S, name(S, seat) + ' が発展カードを買った'); stat(S, seat, 'dev');
         return OK;
       }
       case 'roll': {
         if (S.phase !== 'roll') return E('今は振れません');
         const d = [1 + Math.floor(rnd() * 6), 1 + Math.floor(rnd() * 6)];
         S.dice = d; const sum = d[0] + d[1];
+        if (S.diceHist) S.diceHist[sum]++; stat(S, seat, 'rolls'); if (sum === 7) stat(S, seat, 'sevens');
         log(S, name(S, seat) + ' の出目 ' + sum);
         if (sum === 7) {
           S.discardNeed = {};
@@ -414,7 +419,7 @@
         if (RES.some((r) => cnt[r] > S.bank[r])) return E('銀行にありません');
         RES.forEach((r) => { p.res[r] += cnt[r] - cost[r]; S.bank[r] += cost[r] - cnt[r]; });
         const list = (o) => RES.filter((r) => o[r]).map((r) => RES_JA[r] + o[r]).join(' ');
-        log(S, name(S, seat) + ' が ' + list(cost) + ' → ' + list(cnt) + ' に交換');
+        log(S, name(S, seat) + ' が ' + list(cost) + ' → ' + list(cnt) + ' に交換'); stat(S, seat, 'bank', gets.length);
         return OK;
       }
       case 'offerTrade': {
@@ -433,7 +438,7 @@
         if (!o || a.with === seat || t.resp[a.with] !== true) return E('相手が受けていません');
         if (!canAfford(p, t.give) || !canAfford(o, t.want)) return E('札が足りなくなりました');
         RES.forEach((r) => { p.res[r] += t.want[r] - t.give[r]; o.res[r] += t.give[r] - t.want[r]; });
-        log(S, name(S, seat) + ' と ' + name(S, a.with) + ' が交換した');
+        log(S, name(S, seat) + ' と ' + name(S, a.with) + ' が交換した'); stat(S, seat, 'trades'); stat(S, a.with, 'trades');
         S.trade = null;
         return OK;
       }
@@ -442,7 +447,7 @@
         if (!c || !o || t.resp[a.with] !== 'counter') return E('逆提案がありません');
         if (!canAfford(p, c.want) || !canAfford(o, c.give)) return E('札が足りなくなりました');
         RES.forEach((r) => { p.res[r] += c.give[r] - c.want[r]; o.res[r] += c.want[r] - c.give[r]; });
-        log(S, name(S, seat) + ' と ' + name(S, a.with) + ' が交換した（逆提案）');
+        log(S, name(S, seat) + ' と ' + name(S, a.with) + ' が交換した（逆提案）'); stat(S, seat, 'trades'); stat(S, a.with, 'trades');
         S.trade = null;
         return OK;
       }
@@ -456,7 +461,7 @@
       case 'endTurn': {
         if (S.phase !== 'main') return E('今は終われません');
         S.trade = null; p.dev = p.dev.concat(p.devNew); p.devNew = []; S.devPlayed = false; S.dice = null;
-        S.turn = (S.turn + 1) % S.players.length; S.phase = 'roll';
+        S.turn = (S.turn + 1) % S.players.length; S.phase = 'roll'; S.turns = (S.turns || 0) + 1;
         return OK;
       }
     }

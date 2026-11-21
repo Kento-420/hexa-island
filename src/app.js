@@ -156,7 +156,7 @@
   let room = null;   // {code, local, host, seats, inputs, unsub, slow}
   let S = null, me = -1;
   let busy = false;
-  const blankUi = () => ({ confirm: null, pv: 0, sel: null, counter: false, mode: null, sheet: null, tab: 'bank', give: E.zero(), want: E.zero(), disc: E.zero(), bankSets: E.zero(), bankGetN: E.zero(), pick: [], view: 0, sentDiscard: false, sentTrade: 0 });
+  const blankUi = () => ({ peek: false, confirm: null, pv: 0, sel: null, counter: false, mode: null, sheet: null, tab: 'bank', give: E.zero(), want: E.zero(), disc: E.zero(), bankSets: E.zero(), bankGetN: E.zero(), pick: [], view: 0, sentDiscard: false, sentTrade: 0 });
   let ui = blankUi();
   let lastTurnKey = '', lastStealRev = 0, lastMonoKey = '';
   let robFx = null, robTimer = null, prevRob = null, chipFx = {}, chipTimer = null, prevNeed = null;
@@ -645,7 +645,7 @@
   function playersHtml(m) {
     let o = '<div class="players n' + S.players.length + '">';
     S.players.forEach((p, s) => {
-      const vp = s === m ? E.totalVP(S, s) : E.publicVP(S, s);
+      const vp = s === m || S.phase === 'over' ? E.totalVP(S, s) : E.publicVP(S, s); // ほかの人の勝利点カードは、終わるまで数えない
       o += '<button class="pl' + (s === S.turn && S.phase !== 'over' ? ' on' : '') + (s === m ? ' me' : '') + '" style="--pc:' + PCOL[s] + '" data-a="view" data-i="' + s + '">';
       o += '<span class="pn"><i class="dot"></i>' + esc(p.name) + '</span>';
       const lr = S.longestRoad === s, la = S.largestArmy === s;
@@ -691,7 +691,7 @@
   function sheetHtml(m) {
     let kind = ui.sheet, forced = false;
     const mine = m === S.turn, p = m >= 0 ? S.players[m] : null;
-    if (S.phase === 'over') { kind = 'over'; forced = true; }
+    if (S.phase === 'over') { if (ui.peek) return '<button class="btn pri peekb" data-a="peek">結果発表にもどる</button>'; kind = 'over'; forced = true; }
     else if (p && S.phase === 'discard' && S.discardNeed[m]) { kind = 'discard'; forced = true; }
     else if (p && S.phase === 'steal' && mine) { kind = 'steal'; forced = true; }
     else if (p && S.trade && !mine && S.trade.resp[m] === undefined && ui.sentTrade !== S.trade.id && !room.local) { kind = 'tradeIn'; forced = true; }
@@ -699,11 +699,32 @@
     if (!kind) return '';
     let h = '';
     if (kind === 'over') {
-      h = '<h2>' + esc(S.players[S.winner].name) + ' の勝ち！</h2><ul class="seats">' + S.players.map((q, s) => '<li><i class="dot" style="background:' + PCOL[s] + '"></i>' + esc(q.name) + '<span class="sc">' + E.totalVP(S, s) + '点</span></li>').join('') + '</ul>';
-      if (room.local) h += '<button class="btn pri" data-a="' + (room.cpu ? 'cpu' : 'local') + '" data-i="' + S.players.length + '">もう一度</button>';
+      // 結果発表：順位と点数の内訳（勝利点カードもここで公開）、賞、サイコロの出方
+      const N = S.players.length, info = S.players.map((q, s) => {
+        const st = S.bld.filter((b) => b && b.p === s && b.t === 1).length, ct = S.bld.filter((b) => b && b.p === s && b.t === 2).length;
+        return { s, q, st, ct, lr: S.longestRoad === s, la: S.largestArmy === s, vc: q.dev.concat(q.devNew).filter((c) => c === 'vp').length, total: E.totalVP(S, s) };
+      }).sort((a, b) => (b.s === S.winner) - (a.s === S.winner) || b.total - a.total);
+      const wi = info[0];
+      h = '<p class="eyebrow">結果発表</p><h2 class="win"><i class="dot" style="background:' + PCOL[wi.s] + '"></i> ' + esc(wi.q.name) + ' の勝ち！</h2>';
+      if (wi.vc) h += '<p class="note">かくし持っていた勝利点カード' + wi.vc + '枚が決め手でした（ゲーム中は本人にしか見えません）。</p>';
+      h += '<div class="rank">' + info.map((x, k) => {
+        const parts = [];
+        if (x.st) parts.push('開拓地' + x.st + '<b>' + x.st + '</b>'); if (x.ct) parts.push('都市' + x.ct + '<b>' + x.ct * 2 + '</b>');
+        if (x.lr) parts.push('最長交易路<b>2</b>'); if (x.la) parts.push('最大騎士力<b>2</b>'); if (x.vc) parts.push('<span class="vc">勝利点カード' + x.vc + '<b>' + x.vc + '</b></span>');
+        return '<div class="rk' + (k === 0 ? ' top' : '') + '" style="--pc:' + PCOL[x.s] + ';animation-delay:' + (k * 0.25) + 's"><div class="rh"><span class="no">' + (k + 1) + '位</span><i class="dot"></i><span class="nm">' + esc(x.q.name) + '</span><span class="tp"><b>' + x.total + '</b>点</span></div><div class="bd">' + parts.join('<i>＋</i>') + '</div></div>';
+      }).join('') + '</div>';
+      if (S.stats) {
+        const aw = [['gain', '資源王', 'サイコロでもらった資源', '枚'], ['built', '建築王', '建てたコマ', '個'], ['trades', '交渉上手', 'ほかの人と交換', '回'], ['bank', '銀行のお得意さま', '銀行・港でもらった', '枚'], ['stole', '大どろぼう', 'うばった', '回'], ['robbed', '盗賊に好かれた人', 'うばわれた', '回'], ['sevens', '7の申し子', '7を出した', '回'], ['disc', '捨て札王', '7で捨てた', '枚'], ['dev', 'カード好き', '発展カードを買った', '枚']];
+        const rows = aw.map((a) => { const max = Math.max.apply(null, S.stats.map((x) => x[a[0]] || 0)); if (max <= 0) return ''; const who = S.stats.map((x, s) => ((x[a[0]] || 0) === max ? s : -1)).filter((s) => s >= 0); return '<div class="aw"><b>' + a[1] + '</b><span>' + who.map((s) => '<i class="dot" style="background:' + PCOL[s] + '"></i>' + esc(S.players[s].name)).join('・') + '</span><small>' + a[2] + ' ' + max + a[3] + '</small></div>'; }).join('');
+        if (rows) h += '<p class="eyebrow">みんなの賞</p><div class="aws">' + rows + '</div>';
+        const kn = Math.max.apply(null, S.players.map((q) => q.knights)), rl = Math.max.apply(null, S.roadLens);
+        h += '<p class="note">全' + (Math.floor((S.turns || 0) / N) + 1) + '巡。いちばん長い道は' + rl + '本、騎士はいちばん多い人で' + kn + '枚。</p>';
+      }
+      if (S.diceHist) { const mx = Math.max.apply(null, S.diceHist.concat([1])); h += '<p class="eyebrow">サイコロの出方</p><div class="dh">' + [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => '<div><span>' + (S.diceHist[n] || '') + '</span><i style="height:' + Math.round((S.diceHist[n] || 0) / mx * 44) + 'px" class="' + (n === 7 ? 'sv' : '') + '"></i><b>' + n + '</b></div>').join('') + '</div>'; }
+      if (room.local) h += '<button class="btn pri" data-a="' + (room.cpu ? 'cpu' : 'local') + '" data-i="' + N + '">もう一度</button>';
       else if (room.host === store.uid) h += '<button class="btn pri" data-a="start">同じ部屋でもう一度</button>';
-      else h += '<p class="note">ホストが次のゲームを始められます。</p>';
-      h += '<button class="btn ghost" data-a="leave">' + (room.local ? 'タイトルへ' : '部屋を出る') + '</button>';
+      else h += '<p class="note">部屋を作った人が次のゲームを始められます。</p>';
+      h += '<button class="btn" data-a="peek">盤面を見る</button><button class="btn ghost" data-a="leave">' + (room.local ? 'タイトルへ' : '部屋を出る') + '</button>';
     } else if (kind === 'discard') {
       const need = S.discardNeed[m], sel = E.total(ui.disc), tot = E.total(p.res);
       h = '<h2>7が出た：' + need + '枚捨てる</h2><p class="note">手札が' + tot + '枚（8枚以上）なので、半分を捨てます。</p>';
@@ -852,6 +873,7 @@
       case 'rmCpu': if (/^cpu[1-3]$/.test(i)) store.del('games/' + room.code + '/seats/' + i).catch(fail); break;
       case 'lv': cpuLevel = +i; ls.set('shima.lv', String(cpuLevel)); render(); break;
       case 'start': startGame(); break;
+      case 'peek': ui.peek = !ui.peek; render(); break;
       case 'menuAsk': ui.confirm = i; render(); break;
       case 'menuNo': ui.confirm = null; render(); break;
       case 'menuDo': {
